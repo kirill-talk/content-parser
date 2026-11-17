@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Migration Studio</title>
+    <style>
+        :root {
+            --bg-body: #121316;
+            --bg-sidebar: #18191d;
+            --bg-header: #18191d;
+            --bg-card: #1f2128;
+            --bg-card-header: #262932;
+            --bg-input: #15171c;
+            --border: #2c303c;
+            --border-subtle: #22252e;
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --btn-green: #10b981;
+            --btn-green-hover: #059669;
+            --text-main: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #38bdf8;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: var(--font); background: var(--bg-body); color: var(--text-main); line-height: 1.5; display: flex; height: 100vh; overflow: hidden; }
+
+        /* Left Sidebar */
+        aside.sidebar {
+            width: 220px;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: transform 0.25s ease;
+            z-index: 50;
+        }
+        .logo-area {
+            padding: 18px 20px;
+            font-size: 15px;
+            font-weight: 700;
+            color: #fff;
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sidebar-section { padding: 14px 12px; }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 12px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13.5px;
+            font-weight: 500;
+            border-radius: 8px;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+        .nav-item:hover { color: #fff; background: rgba(255,255,255,0.04); }
+        .nav-item.active { color: #fff; background: #252833; font-weight: 600; }
+        .nav-item svg { width: 17px; height: 17px; opacity: 0.8; flex-shrink: 0; }
+
+        /* Main Workspace */
+        .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-body); position: relative; }
+
+        /* Top Header */
+        header.top-header {
+            height: 56px;
+            background: var(--bg-header);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            flex-shrink: 0;
+        }
+        .mobile-menu-btn { display: none; background: none; border: none; color: #fff; cursor: pointer; padding: 6px; }
+        .header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+        
+        /* Agent Indicators */
+        .agent-pills { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+        .agent-pill { background: rgba(255,255,255,0.04); border: 1px solid var(--border); padding: 3px 8px; border-radius: 6px; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+        .agent-status-dot { width: 6px; height: 6px; border-radius: 50%; background: #10b981; }
+
+        .user-avatar-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: #252833;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        /* Content Area */
+        .content-scroll { flex: 1; overflow-y: auto; padding: 20px 24px 60px; }
+        .page-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .page-title { font-size: 20px; font-weight: 700; color: #fff; }
+
+        /* Tabs */
+        .tabs-row { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+        .tab-btn { background: none; border: none; color: var(--text-muted); font-size: 13.5px; font-weight: 600; padding: 10px 0; border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; }
+        .tab-btn.active { color: #fff; border-bottom-color: var(--primary); }
+
+        /* Toolbar */
+        .toolbar {
+            background: var(--bg-sidebar);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 24px;
+        }
+        .tool-group { display: flex; flex-direction: column; gap: 5px; }
+        .tool-group label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+        select, input {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            height: 36px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        select:focus, input:focus { border-color: var(--primary); }
+
+        /* Language Checkbox Group */
+        .lang-checkboxes { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 4px; }
+        .lang-label { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--text-secondary); cursor: pointer; }
+        .lang-label input { width: 14px; height: 14px; margin: 0; cursor: pointer; accent-color: var(--primary); }
+
+        .btn-mach3 {
+            background: var(--primary);
+            color: #fff;
+            font-weight: 600;
+            padding: 0 16px;
+            height: 36px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.15s;
+        }
+        .btn-mach3:hover { background: var(--primary-hover); }
+        .btn-mach3:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-analyze {
+            background: #475569;
+            color: #fff;
+            font-weight: 600;
+            padding: 0 14px;
+            height: 36px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-analyze:hover { background: #64748b; }
+
+        .btn-export-mach3 {
+            background: #10b981;
+            color: #fff;
+            font-weight: 600;
+            padding: 0 18px;
+            height: 36px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+        }
+        .btn-export-mach3:hover { background: #059669; }
+        .btn-export-mach3:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+
+        /* Article Items */
+        .articles-list { display: flex; flex-direction: column; gap: 20px; }
+        .article-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+        }
+        .article-card-header {
+            padding: 14px 20px;
+            background: var(--bg-card-header);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .article-title { font-size: 16px; font-weight: 600; color: #fff; }
+        .article-meta { font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .tag-pill { background: rgba(59, 130, 246, 0.15); color: #93c5fd; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }
+        .source-btn {
+            color: var(--accent);
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(56, 189, 248, 0.08);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11.5px;
+        }
+
+        /* 2-Column Fields Layout */
+        .fields-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 20px;
+        }
+
+        .field-box {
+            background: #17181f;
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+        .field-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .field-name-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent); letter-spacing: 0.5px; }
+        .field-type-pill { font-size: 10px; background: #262933; color: var(--text-muted); padding: 1px 6px; border-radius: 3px; }
+        
+        .field-lang-block { margin-top: 6px; font-size: 12.5px; color: #cbd5e1; }
+        .lang-prefix { font-size: 10px; font-weight: bold; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 1px 4px; border-radius: 3px; margin-right: 6px; text-transform: uppercase; }
+        .field-preview { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; max-height: 140px; overflow-y: auto; word-break: break-word; }
+        .field-preview img { max-width: 100%; border-radius: 6px; margin-top: 6px; }
+
+        /* Taxonomy Mapping Table */
+        .mapping-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .table-toolbar { padding: 14px 20px; background: var(--bg-card-header); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        table.mapping-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        table.mapping-table th { background: #17181f; padding: 10px 16px; color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; border-bottom: 1px solid var(--border); }
+        table.mapping-table td { padding: 10px 16px; border-bottom: 1px solid var(--border-subtle); vertical-align: middle; }
+        table.mapping-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+        /* Pre-analysis Table */
+        .analysis-modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        /* Responsive Mobile Styles */
+        @media (max-width: 820px) {
+            aside.sidebar { position: fixed; left: -220px; top: 0; bottom: 0; }
+            aside.sidebar.open { transform: translateX(220px); }
+            .mobile-menu-btn { display: block; }
+            .fields-grid { grid-template-columns: 1fr; }
+            .toolbar { flex-direction: column; align-items: stretch; }
+            .btn-mach3, .btn-analyze, .btn-export-mach3 { width: 100%; justify-content: center; }
+            .content-scroll { padding: 16px; }
+            .agent-pills { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="logo-area">
+            <span>Content Parser</span>
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">&times;</button>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="nav-item active" id="navDashboard" onclick="switchTab('parse')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Dashboard
+            </div>
+            <div class="nav-item" id="navTags" onclick="switchTab('tags')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                Taxonomy & Filters
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="workspace">
+        <header class="top-header">
+            <button class="mobile-menu-btn" onclick="toggleSidebar()">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            </button>
+
+            <!-- Agent Status Indicators -->
+            <div class="agent-pills">
+                <div class="agent-pill" title="Content Splitting Agent">
+                    <span class="agent-status-dot"></span> Content Agent
+                </div>
+                <div class="agent-pill" title="Language Translation Pairing Agent">
+                    <span class="agent-status-dot"></span> Translation Agent
+                </div>
+                <div class="agent-pill" title="Taxonomy Mapping Agent">
+                    <span class="agent-status-dot"></span> Taxonomy Agent
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="user-avatar-btn" title="Account / Authentication">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+            </div>
+        </header>
+
+        <div class="content-scroll">
+            <div class="page-title-row">
+                <h1 class="page-title" id="viewTitle">Blog Content Migration Studio</h1>
+            </div>
+
+            <div class="tabs-row">
+                <button class="tab-btn active" id="tabParseBtn" onclick="switchTab('parse')">Migration & Parsing</button>
+                <button class="tab-btn" id="tabTagsBtn" onclick="switchTab('tags')">Taxonomy & Filters</button>
+            </div>
+
+            <!-- TAB 1: PARSING VIEW -->
+            <div id="parseView">
+                <div class="toolbar">
+                    <div class="tool-group">
+                        <label>Fetch Mode</label>
+                        <select id="modeSelect" onchange="toggleMode()">
+                            <option value="recent">Recent Blog Posts</option>
+                            <option value="range">Range (from N to N)</option>
+                            <option value="single">Single Post (ID or Slug)</option>
+                        </select>
+                    </div>
+
+                    <div class="tool-group" id="countGroup">
+                        <label>Articles Count</label>
+                        <select id="countSelect">
+                            <option value="3">3 posts (Quick test)</option>
+                            <option value="5" selected>5 posts (Recommended)</option>
+                            <option value="10">10 posts</option>
+                        </select>
+                    </div>
+
+                    <div class="tool-group" id="rangeGroup" style="display: none;">
+                        <label>Article Range (1 - 494)</label>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: var(--text-muted); font-size: 13px;">From</span>
+                            <input type="number" id="fromInput" value="1" min="1" max="494" style="width: 75px;">
+                            <span style="color: var(--text-muted); font-size: 13px;">to</span>
+                            <input type="number" id="toInput" value="5" min="1" max="494" style="width: 75px;">
+                        </div>
+                    </div>
+
+                    <div class="tool-group" id="singleGroup" style="display: none;">
+                        <label>Post ID or Slug</label>
+                        <input type="text" id="postIdentifier" placeholder="e.g. 12972 or planten-mooi-neer-te-zetten" style="min-width: 240px;">
+                    </div>
+
+                    <!-- Flexible Language Selector -->
+                    <div class="tool-group">
+                        <label>Target Languages</label>
+                        <div class="lang-checkboxes">
+                            <label class="lang-label"><input type="checkbox" id="lang_nl" checked disabled> NL</label>
+                            <label class="lang-label"><input type="checkbox" id="lang_en" checked> EN</label>
+                            <label class="lang-label"><input type="checkbox" id="lang_de"> DE</label>
+                            <label class="lang-label"><input type="checkbox" id="lang_fr"> FR</label>
+                        </div>
+                    </div>
+
+                    <div class="tool-group">
+                        <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
+                            <span>🔍 Analyze</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group">
+                        <button class="btn-mach3" id="parseBtn" onclick="runParser()">
+                            <span id="btnText">&#9654; Run Parser</span>
+                        </button>
+                    </div>
+
+                    <div class="tool-group" style="margin-left: auto;">
+                        <button class="btn-export-mach3" id="exportBtn" onclick="downloadJSON()" disabled>
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            export json
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Analysis Matrix Box -->
+                <div id="analysisContainer" style="display: none;" class="analysis-modal"></div>
+
+                <!-- Articles Result Cards -->
+                <div id="articlesContainer" class="articles-list">
+                    <div style="text-align: center; padding: 48px; color: var(--text-muted); background: var(--bg-card); border-radius: 10px; border: 1px dashed var(--border);">
+                        Select your preferred languages and click <strong>▶ Run Parser</strong> to process articles, or click <strong>🔍 Pre-analysis</strong> to check translation availability first.
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: TAXONOMY & FILTERS MAPPING -->
+            <div id="tagsView" style="display: none;">
+                <div class="mapping-table-wrap">
+                    <div class="table-toolbar">
+                        <input type="text" id="tagSearchInput" placeholder="Filter by tag name or slug..." oninput="filterTagTable()" style="min-width: 280px;">
+                        <button class="btn-export-mach3" onclick="saveTagMapping()">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                            save tag mapping
+                        </button>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 550px;">
+                        <table class="mapping-table" id="tagMappingTable">
+                            <thead>
+                                <tr>
+                                    <th>Tag Name (Old Site)</th>
+                                    <th>Slug</th>
+                                    <th>Articles Count</th>
+                                    <th>Mach3Blocks Target Filter</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tagTableBody">
+                                <tr><td colspan="4" style="text-align: center; padding: 24px;">Loading taxonomy tags...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentData = null;
+        let mappingData = null;
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+        }
+
+        function switchTab(tab) {
+            const sideDashboard = document.getElementById('navDashboard');
+            const sideTags = document.getElementById('navTags');
+            if (tab === 'parse') {
+                document.getElementById('parseView').style.display = 'block';
+                document.getElementById('tagsView').style.display = 'none';
+                document.getElementById('tabParseBtn').classList.add('active');
+                document.getElementById('tabTagsBtn').classList.remove('active');
+                if (sideDashboard) sideDashboard.classList.add('active');
+                if (sideTags) sideTags.classList.remove('active');
+                document.getElementById('viewTitle').textContent = 'Blog Content Migration Studio';
+            } else {
+                document.getElementById('parseView').style.display = 'none';
+                document.getElementById('tagsView').style.display = 'block';
+                document.getElementById('tabParseBtn').classList.remove('active');
+                document.getElementById('tabTagsBtn').classList.add('active');
+                if (sideDashboard) sideDashboard.classList.remove('active');
+                if (sideTags) sideTags.classList.add('active');
+                document.getElementById('viewTitle').textContent = 'Taxonomy & Filter Mapping';
+                loadTagMapping();
+            }
+            // Auto close mobile drawer on click
+            document.getElementById('sidebar').classList.remove('open');
+        }
+
+        function toggleMode() {
+            const mode = document.getElementById('modeSelect').value;
+            document.getElementById('countGroup').style.display = mode === 'recent' ? 'flex' : 'none';
+            document.getElementById('rangeGroup').style.display = mode === 'range' ? 'flex' : 'none';
+            document.getElementById('singleGroup').style.display = mode === 'single' ? 'flex' : 'none';
+        }
+
+        function getSelectedLanguages() {
+            const langs = ['nl'];
+            if (document.getElementById('lang_en').checked) langs.push('en');
+            if (document.getElementById('lang_de').checked) langs.push('de');
+            if (document.getElementById('lang_fr').checked) langs.push('fr');
+            return langs.join(',');
+        }
+
+        async function runAnalysis() {
+            const mode = document.getElementById('modeSelect').value;
+            const count = document.getElementById('countSelect').value;
+            const fromN = document.getElementById('fromInput').value;
+            const toN = document.getElementById('toInput').value;
+            const langs = getSelectedLanguages();
+            const analysisBox = document.getElementById('analysisContainer');
+
+            analysisBox.style.display = 'block';
+            analysisBox.innerHTML = '<div style="color:var(--accent);">🔍 Analyzing language availability for selected posts...</div>';
+
+            let url = `/api/analyze?langs=${langs}&count=${count}`;
+            if (mode === 'range') {
+                url = `/api/analyze?langs=${langs}&from=${encodeURIComponent(fromN)}&to=${encodeURIComponent(toN)}`;
+            }
+
+            try {
+                // Fetch site JSON export capability and posts preview
+                const [detectResp, analyzeResp] = await Promise.all([
+                    fetch(`/api/detect?url=${encodeURIComponent('https://anthuriuminfo.com')}`),
+                    fetch(url)
+                ]);
+                const detectData = await detectResp.json();
+                const items = await analyzeResp.json();
+                renderAnalysis(items, detectData);
+            } catch (e) {
+                analysisBox.innerHTML = `<div style="color:#ef4444;">Analysis failed: ${e.message}</div>`;
+            }
+        }
+
+        function renderAnalysis(items, detectData) {
+            const box = document.getElementById('analysisContainer');
+            const showEn = document.getElementById('lang_en').checked;
+            const showDe = document.getElementById('lang_de').checked;
+            const showFr = document.getElementById('lang_fr').checked;
+
+            let detectBanner = '';
+            if (detectData) {
+                const isJsonReady = detectData.supports_json_export;
+                detectBanner = `
+                    <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px;">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="display:inline-flex; width:22px; height:22px; background:${isJsonReady ? '#10b981' : '#f59e0b'}; color:#fff; border-radius:50%; align-items:center; justify-content:center; font-size:12px; font-weight:bold;">${isJsonReady ? '✓' : '!'}</span>
+                            <div>
+                                <div style="font-size:13.5px; font-weight:700; color:#fff;">
+                                    Source API: ${isJsonReady ? 'JSON Export Ready (WordPress REST API)' : 'JSON Export Not Available'}
+                                </div>
+                                <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">
+                                    Endpoint: <code>${detectData.api_endpoint || 'None'}</code> &bull; Total Available in Blog: <strong style="color:var(--text-secondary);">${detectData.total_posts || 0}</strong> posts
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:6px;">
+                            ${(detectData.detected_features || []).map(f => `<span style="font-size:11px; background:var(--bg-input); border:1px solid var(--border); padding:3px 8px; border-radius:4px; color:var(--text-secondary);">${f}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            let headerCells = '<th>ID</th><th>Date</th><th>Dutch Title (NL)</th><th>Dutch (NL)</th>';
+            if (showEn) headerCells += '<th>English (EN)</th>';
+            if (showDe) headerCells += '<th>German (DE)</th>';
+            if (showFr) headerCells += '<th>French (FR)</th>';
+
+            let rows = items.map((it) => {
+                let cells = `<td><strong>#${it.id}</strong></td><td>${it.date}</td><td>${it.title}</td><td><span style="color:#10b981;">✓ Ready</span></td>`;
+                if (showEn) cells += `<td>${it.languages.en ? '<span style="color:#10b981;">✓ Ready</span>' : '<span style="color:#ef4444;">✗ No match</span>'}</td>`;
+                if (showDe) cells += `<td>${it.languages.de ? '<span style="color:#10b981;">✓ Ready</span>' : '<span style="color:#ef4444;">✗ No match</span>'}</td>`;
+                if (showFr) cells += `<td>${it.languages.fr ? '<span style="color:#10b981;">✓ Ready</span>' : '<span style="color:#ef4444;">✗ No match</span>'}</td>`;
+                return `<tr>${cells}</tr>`;
+            }).join('');
+
+            box.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                    <h3 style="font-size:15px; color:#fff;">Analysis & Source Discovery</h3>
+                    <button onclick="document.getElementById('analysisContainer').style.display='none'" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px;">✕ Close</button>
+                </div>
+                ${detectBanner}
+                <div style="font-size:12.5px; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px;">Language Translation Matrix (${items.length} posts)</div>
+                <div style="overflow-x:auto;">
+                    <table class="mapping-table">
+                        <thead><tr>${headerCells}</tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        async function runParser() {
+            const mode = document.getElementById('modeSelect').value;
+            const count = document.getElementById('countSelect').value;
+            const fromN = document.getElementById('fromInput').value;
+            const toN = document.getElementById('toInput').value;
+            const identifier = document.getElementById('postIdentifier').value.trim();
+            const langs = getSelectedLanguages();
+            const parseBtn = document.getElementById('parseBtn');
+            const exportBtn = document.getElementById('exportBtn');
+            const btnText = document.getElementById('btnText');
+            const container = document.getElementById('articlesContainer');
+
+            parseBtn.disabled = true;
+            btnText.textContent = "⏳ Parsing & Synchronizing...";
+            container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--accent);">Processing posts and compiling Mach3Blocks payload...</div>';
+
+            try {
+                let url = `/api/parse?langs=${langs}&count=${count}`;
+                if (mode === 'range') {
+                    url = `/api/parse?langs=${langs}&from=${encodeURIComponent(fromN)}&to=${encodeURIComponent(toN)}`;
+                } else if (mode === 'single' && identifier) {
+                    url = `/api/parse?langs=${langs}&identifier=${encodeURIComponent(identifier)}`;
+                }
+
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error(`Server error: ${resp.statusText}`);
+                const data = await resp.json();
+                currentData = data;
+
+                renderResults(data);
+                exportBtn.disabled = false;
+            } catch (err) {
+                container.innerHTML = `<div style="background: #ef4444; color: #fff; padding: 16px; border-radius: 8px;">Error: ${err.message}</div>`;
+            } finally {
+                parseBtn.disabled = false;
+                btnText.textContent = "▶ Run Parser";
+            }
+        }
+
+        const TAXONOMY_NAMES = {
+            451897: "verzorging",
+            451898: "inspiratie",
+            451899: "feitjes & weetjes",
+            451900: "do it yourself",
+            451901: "potanthurium",
+            451902: "snijanthurium",
+            452681: "most read",
+            451887: "water geven",
+            451888: "gele bladeren",
+            451889: "standplaats",
+            451890: "voeding",
+            451891: "verpotten",
+            451892: "snijanthurium",
+            451893: "potanthurium",
+            451879: "interieur",
+            451880: "styling",
+            451881: "seizoenen",
+            451882: "feestdagen",
+            451883: "cadeau",
+            451884: "trends",
+            451885: "potanthurium",
+            451886: "snijanthurium"
+        };
+
+        function renderResults(data) {
+            const container = document.getElementById('articlesContainer');
+            container.innerHTML = '';
+
+            data.items.forEach((item) => {
+                const f = item.fields;
+                const card = document.createElement('div');
+                card.className = 'article-card';
+
+                const tagsList = item.tags.map(t => {
+                    const label = TAXONOMY_NAMES[t] || `Tag #${t}`;
+                    return `<span class="tag-pill" title="ID: ${t}">🏷️ ${label} <small style="opacity:0.65;">(${t})</small></span>`;
+                }).join(' ');
+
+                const sourceUrl = item['source-url'] || `https://anthuriuminfo.com/blog/${item.slug.nl}/`;
+                const activeLangs = Object.keys(f['item-heading']);
+
+                card.innerHTML = `
+                    <div class="article-card-header">
+                        <div>
+                            <div class="article-title">${item.name.nl}</div>
+                            <div class="article-meta">
+                                <span><strong>Nano-ID:</strong> ${item['nano-id']}</span>
+                                <span>&bull; <strong>Date:</strong> ${f.date.nl}</span>
+                                <span>&bull; <strong>Languages:</strong> ${activeLangs.map(l => l.toUpperCase()).join(', ')}</span>
+                                <a href="${sourceUrl}" target="_blank" rel="noopener noreferrer" class="source-btn" title="Open original post on WordPress">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                    Original Post
+                                </a>
+                            </div>
+                        </div>
+                        <div>${tagsList}</div>
+                    </div>
+
+                    <div class="fields-grid">
+                        <div class="col-fields">
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">1. item-heading</span><span class="field-type-pill">Heading</span></div>
+                                ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-heading'][l]}</div>`).join('')}
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">2. date</span><span class="field-type-pill">Date</span></div>
+                                <div class="field-lang-block">${f.date.nl || '<em>(Empty)</em>'}</div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">3. item-media</span><span class="field-type-pill">Media</span></div>
+                                <div class="field-preview"><code>${escapeHtml(f['item-media'].nl)}</code><div>${f['item-media'].nl}</div></div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">4. media-size</span><span class="field-type-pill">Heading</span></div>
+                                <div class="field-lang-block"><em>(Empty)</em></div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">5. item-intro-text</span><span class="field-type-pill">Text</span></div>
+                                ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-intro-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">6. tags</span><span class="field-type-pill">Text HTML</span></div>
+                                <div class="field-preview"><pre>${escapeHtml(f.tags.nl)}</pre></div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">7. text-1</span><span class="field-type-pill">Text</span></div>
+                                <div class="field-preview">${f['text-1'].nl || '<em>(Empty)</em>'}</div>
+                            </div>
+                        </div>
+
+                        <div class="col-fields">
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">8. media-2</span><span class="field-type-pill">Media</span></div>
+                                <div class="field-preview"><code>${escapeHtml(f['media-2'].nl)}</code><div>${f['media-2'].nl}</div></div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">9. media-2-text</span><span class="field-type-pill">Heading</span></div>
+                                ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-2-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">10. text-2</span><span class="field-type-pill">Text</span></div>
+                                <div class="field-preview">${f['text-2'].nl || '<em>(Empty)</em>'}</div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">11. instagram</span><span class="field-type-pill">URL</span></div>
+                                <div class="field-lang-block">${f.instagram.nl ? `<a href="${f.instagram.nl}" target="_blank" style="color:var(--accent)">${f.instagram.nl}</a>` : '<em>(Empty)</em>'}</div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">12. media-3</span><span class="field-type-pill">Media</span></div>
+                                <div class="field-preview"><code>${escapeHtml(f['media-3'].nl)}</code><div>${f['media-3'].nl}</div></div>
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">13. media-3-text</span><span class="field-type-pill">Heading</span></div>
+                                ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-3-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                            </div>
+                            <div class="field-box">
+                                <div class="field-title-row"><span class="field-name-label">14. text-3</span><span class="field-type-pill">Text</span></div>
+                                <div class="field-preview">${f['text-3'].nl || '<em>(Empty)</em>'}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        /* --- Taxonomy Mapping Logic --- */
+        async function loadTagMapping() {
+            try {
+                const resp = await fetch('/api/tags/mapping');
+                mappingData = await resp.json();
+                renderTagTable(mappingData.wp_tags);
+            } catch (e) {
+                document.getElementById('tagTableBody').innerHTML = `<tr><td colspan="4" style="color:#ef4444;">Failed to load tags: ${e.message}</td></tr>`;
+            }
+        }
+
+        function renderTagTable(tags) {
+            const tbody = document.getElementById('tagTableBody');
+            const targets = mappingData.targets;
+            const currentMap = mappingData.mapping;
+
+            tbody.innerHTML = tags.map(t => {
+                const tName = t.name.toLowerCase().trim();
+                let assignedIds = currentMap[tName] || [];
+
+                // If not explicitly mapped, check baseline keyword matching
+                if (assignedIds.length === 0) {
+                    for (const [k, v] of Object.entries(currentMap)) {
+                        if (k === tName || tName.includes(k) || k.includes(tName)) {
+                            assignedIds = v;
+                            break;
+                        }
+                    }
+                }
+
+                let optionsHtml = targets.map(target => {
+                    const isSelected = assignedIds.includes(target.id) ? 'selected' : '';
+                    return `<option value="${target.id}" ${isSelected}>[${target.group}] ${target.name} (#${target.id})</option>`;
+                }).join('');
+
+                return `
+                    <tr data-name="${escapeHtml(t.name.toLowerCase())}" data-slug="${escapeHtml(t.slug)}">
+                        <td><strong>${t.name}</strong></td>
+                        <td style="color:var(--text-muted); font-family:monospace;">${t.slug}</td>
+                        <td><span class="tag-pill" style="background:#252833; color:#fff;">${t.count} posts</span></td>
+                        <td>
+                            <select class="tag-target-select" data-tag="${escapeHtml(tName)}" style="width:100%; max-width:320px;">
+                                <option value="">-- No specific filter --</option>
+                                ${optionsHtml}
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterTagTable() {
+            const query = document.getElementById('tagSearchInput').value.toLowerCase().trim();
+            const rows = document.querySelectorAll('#tagTableBody tr');
+            rows.forEach(r => {
+                const name = r.getAttribute('data-name') || '';
+                const slug = r.getAttribute('data-slug') || '';
+                if (name.includes(query) || slug.includes(query)) {
+                    r.style.display = '';
+                } else {
+                    r.style.display = 'none';
+                }
+            });
+        }
+
+        async function saveTagMapping() {
+            const selects = document.querySelectorAll('.tag-target-select');
+            const updatedMapping = {};
+
+            selects.forEach(s => {
+                const tag = s.getAttribute('data-tag');
+                const val = s.value;
+                if (val) {
+                    updatedMapping[tag] = [parseInt(val, 10)];
+                }
+            });
+
+            try {
+                const resp = await fetch('/api/tags/mapping', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(updatedMapping)
+                });
+                if (resp.ok) {
+                    alert('Tag mapping successfully saved and applied to future parsings!');
+                } else {
+                    alert('Failed to save mapping');
+                }
+            } catch (e) {
+                alert('Save error: ' + e.message);
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        function downloadJSON() {
+            if (!currentData) return;
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", `mach3blocks_export_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+        }
+    </script>
+</body>
+</html>

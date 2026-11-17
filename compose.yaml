@@ -1,0 +1,21 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: content-parser:latest
+    container_name: content-parser
+    restart: unless-stopped
+    ports:
+      - '8081:8080'
+    networks:
+      - web
+    labels:
+      - 'traefik.enable=true'
+      - 'traefik.http.routers.content-parser.rule=Host(`content-parser.test`) || Host(`content-parser.kidev.uk`)'
+      - 'traefik.http.routers.content-parser.entrypoints=web'
+      - 'traefik.http.services.content-parser.loadbalancer.server.port=8080'
+
+networks:
+  web:
+    external: true

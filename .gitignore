@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.DS_Store
+Thumbs.db
+.git/
+.vscode/
+.idea/
+stage1_sample_export.json
+*.tmp
