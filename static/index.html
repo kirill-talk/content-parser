@@ -538,7 +538,15 @@
                         </button>
                     </div>
 
-                    <div class="tool-group" style="margin-left: auto;">
+                    <div class="tool-group" style="margin-left: auto; display: flex; align-items: center; gap: 8px;">
+                        <label style="margin: 0; font-size: 11.5px; white-space: nowrap;">Batch size:</label>
+                        <select id="exportBatchSize" style="padding: 6px 8px; border-radius: 6px; font-size: 12px; background: var(--bg-input); border: 1px solid var(--border); color: #fff;">
+                            <option value="30" selected>30 articles</option>
+                            <option value="20">20 articles</option>
+                            <option value="15">15 articles</option>
+                            <option value="10">10 articles</option>
+                            <option value="all">All (single file)</option>
+                        </select>
                         <button class="btn-export-mach3" id="exportBtn" onclick="downloadJSON()" disabled>
                             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                             export json
@@ -1350,14 +1358,51 @@
         }
 
         function downloadJSON() {
-            if (!currentData) return;
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", `mach3blocks_export_${new Date().toISOString().slice(0,10)}.json`);
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            dlAnchor.remove();
+            if (!currentData || !currentData.items || !currentData.items.length) return;
+
+            const batchSelect = document.getElementById('exportBatchSize');
+            const batchVal = batchSelect ? batchSelect.value : '30';
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const totalItems = currentData.items.length;
+
+            if (batchVal === 'all' || totalItems <= parseInt(batchVal, 10)) {
+                // Single export file
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
+                const dlAnchor = document.createElement('a');
+                dlAnchor.setAttribute("href", dataStr);
+                dlAnchor.setAttribute("download", `content_export_${dateStr}_total${totalItems}.json`);
+                document.body.appendChild(dlAnchor);
+                dlAnchor.click();
+                dlAnchor.remove();
+                return;
+            }
+
+            // Chunked export by N items
+            const chunkSize = parseInt(batchVal, 10);
+            const numChunks = Math.ceil(totalItems / chunkSize);
+
+            for (let i = 0; i < numChunks; i++) {
+                const start = i * chunkSize;
+                const end = Math.min(start + chunkSize, totalItems);
+                const chunkItems = currentData.items.slice(start, end);
+
+                const chunkData = {
+                    tags: currentData.tags || [],
+                    items: chunkItems
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(chunkData, null, 2));
+                const dlAnchor = document.createElement('a');
+                dlAnchor.setAttribute("href", dataStr);
+                dlAnchor.setAttribute("download", `content_export_${dateStr}_part${i + 1}_of_${numChunks}_items${start + 1}-${end}.json`);
+                document.body.appendChild(dlAnchor);
+
+                // Small delay between downloads so browser doesn't block multiple files
+                setTimeout(() => {
+                    dlAnchor.click();
+                    dlAnchor.remove();
+                }, i * 350);
+            }
         }
     </script>
 </body>
