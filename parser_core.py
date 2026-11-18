@@ -190,8 +190,11 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
                 "redirect_path": source_rel_path_nl
             }
 
-    # Construct item-media HTML tag
+    # Primary media HTML tags from main post (language-independent images)
     item_media_html = f'<img src="{featured_media_url}" alt="{featured_media_alt}">' if featured_media_url else ""
+    media_2_html = split_nl["media-2"] or ""
+    media_3_html = split_nl["media-3"] or ""
+
     assigned_tag_ids = map_tags_to_ids(tag_names, cat_names, category_ids=cat_ids)
     original_link = post.get("link", f"https://anthuriuminfo.com/blog/{slug}/")
 
@@ -207,11 +210,11 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         "item-intro-text": {"value": make_lang_field(lambda d: d["split"]["item-intro-text"])},
         "tags": {"value": make_lang_field(lambda d: d["tags_html"])},
         "text-1": {"value": make_lang_field(lambda d: d["split"]["text-1"])},
-        "media-2": {"value": make_lang_field(lambda d: d["split"]["media-2"] or split_nl["media-2"])},
+        "media-2": {"value": {l: media_2_html for l in selected_langs}},
         "media-2-text": {"value": make_lang_field(lambda d: d["split"]["media-2-text"] or split_nl["media-2-text"])},
         "text-2": {"value": make_lang_field(lambda d: d["split"]["text-2"])},
         "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])},
-        "media-3": {"value": make_lang_field(lambda d: d["split"]["media-3"] or split_nl["media-3"])},
+        "media-3": {"value": {l: media_3_html for l in selected_langs}},
         "media-3-text": {"value": make_lang_field(lambda d: d["split"]["media-3-text"] or split_nl["media-3-text"])},
         "text-3": {"value": make_lang_field(lambda d: d["split"]["text-3"])}
     }

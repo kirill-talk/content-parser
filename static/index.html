@@ -702,20 +702,15 @@
                     }).join('');
                 }
 
-                // Helper to render media preview with language
+                // Helper to render media preview (shared across all locales, single clean preview)
                 function renderMediaField(fieldObj) {
                     if (!fieldObj) return '<div class="field-preview"><em>(Empty)</em></div>';
-                    return activeLangs.map(l => {
-                        const val = fieldObj[l] || '';
-                        return `
-                            <div style="margin-top: 6px;">
-                                <span class="lang-prefix">${l}</span>
-                                <div class="field-preview" style="margin-top: 4px;">
-                                    ${val ? `<code>${escapeHtml(val)}</code><div>${val}</div>` : '<em>(Empty)</em>'}
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
+                    const val = (typeof fieldObj === 'object') ? (fieldObj.nl || Object.values(fieldObj)[0] || '') : fieldObj;
+                    return `
+                        <div class="field-preview">
+                            ${val ? `<code>${escapeHtml(val)}</code><div>${val}</div>` : '<em>(Empty)</em>'}
+                        </div>
+                    `;
                 }
 
                 const isSingleMode = document.getElementById('modeSelect').value === 'single';
