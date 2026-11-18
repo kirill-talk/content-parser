@@ -24,7 +24,10 @@ from verifier_core import (
     compare_article,
     calculate_similarity,
     normalize_text,
-    match_source_post
+    match_source_post,
+    match_cached_item,
+    save_parsed_export_cache,
+    load_parsed_export_cache
 )
 
 PORT = 8080
@@ -52,6 +55,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_api_analyze(params)
         elif path == "/api/verify/target-urls":
             self.handle_api_verify_target_urls(params)
+        elif path == "/api/verify/cache":
+            self.handle_api_verify_cache()
         elif path == "/api/detect":
             self.handle_api_detect(params)
         elif path == "/api/profiles":
@@ -494,6 +499,9 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 "items": transformed_items
             }
 
+            # Cache parsed items for subsequent verification
+            save_parsed_export_cache(final_result)
+
             send_event({
                 "type": "complete",
                 "total": total,
@@ -570,6 +578,31 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         finally:
             coordinator.set_ready("content_agent")
             coordinator.set_ready("taxonomy_agent")
+
+    def handle_api_verify_cache(self):
+        """Return information about the cached parsed export."""
+        cache = load_parsed_export_cache()
+        if cache and "items" in cache:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "cached": True,
+                "items_count": len(cache["items"]),
+                "sample_titles": [it.get("name", {}).get("nl", "") for it in cache["items"][:5]]
+            }, ensure_ascii=False).encode("utf-8"))
+        else:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "cached": False,
+                "items_count": 0
+            }, ensure_ascii=False).encode("utf-8"))
 
     def handle_api_verify_target_urls(self, params):
         """Fetch list of target articles available on Mach3Blocks archive pages."""
@@ -722,16 +755,27 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 })
 
                 send_ping()
+                def crawl_progress(cur_page, total_found):
+                    send_ping()
+                    send_event({
+                        "type": "status",
+                        "phase": "crawling_target",
+                        "message": f"Crawling page {cur_page}... Discovered {total_found} articles so far."
+                    })
+
                 crawled = discover_target_articles(
                     base_url=target_base,
                     archive_path="/nl/tips-advies/",
-                    max_pages=max_target_pages
+                    max_pages=max_target_pages,
+                    progress_callback=crawl_progress
                 )
 
                 if mode == "range" and from_n is not None and to_n is not None:
                     start_idx = max(0, int(from_n) - 1)
                     end_idx = min(len(crawled), int(to_n))
                     target_articles = crawled[start_idx:end_idx]
+                elif limit <= 0:
+                    target_articles = crawled
                 else:
                     target_articles = crawled[:limit]
 
@@ -761,6 +805,16 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             failed_count = 0
             missing_embeds_count = 0
             verified_results = []
+
+            # Check if local parsed export cache is available
+            cached_export = load_parsed_export_cache()
+            cached_items = cached_export.get("items", []) if cached_export else []
+            if cached_items:
+                send_event({
+                    "type": "status",
+                    "phase": "cache_loaded",
+                    "message": f"Loaded {len(cached_items)} locally parsed articles from cache for fast verification."
+                })
 
             for idx, target_item in enumerate(articles_to_verify):
                 t_url = target_item["url"]
@@ -795,12 +849,23 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     continue
 
                 send_ping()
-                # Intelligently find matching WP source post
-                source_post = match_source_post(
-                    target_slug=t_slug,
-                    target_title=target_parsed.get("title", ""),
-                    wp_api_base="https://anthuriuminfo.com"
-                )
+                # 1. Try matching against locally cached parsed export items first
+                source_post = None
+                if cached_items:
+                    source_post = match_cached_item(
+                        target_slug=t_slug,
+                        target_title=target_parsed.get("title", ""),
+                        cached_items=cached_items,
+                        lang="nl"
+                    )
+
+                # 2. If not in cache or no cache, fallback to live WP API match
+                if not source_post:
+                    source_post = match_source_post(
+                        target_slug=t_slug,
+                        target_title=target_parsed.get("title", ""),
+                        wp_api_base="https://anthuriuminfo.com"
+                    )
 
                 if not source_post:
                     item_res = {

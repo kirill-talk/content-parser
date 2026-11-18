@@ -11,9 +11,69 @@ import json
 import re
 import html
 import difflib
+import os
 from typing import Dict, Any, List, Optional, Tuple
 
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+PARSED_EXPORT_CACHE_FILE = "last_parsed_export.json"
+
+def save_parsed_export_cache(data: Dict[str, Any], filepath: str = PARSED_EXPORT_CACHE_FILE):
+    """Persist parsed/exported items to local JSON cache for fast verification."""
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Warning: could not save parsed export cache: {e}")
+
+def load_parsed_export_cache(filepath: str = PARSED_EXPORT_CACHE_FILE) -> Optional[Dict[str, Any]]:
+    """Load previously parsed/exported items from local JSON cache."""
+    try:
+        if os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return None
+
+def match_cached_item(
+    target_slug: str,
+    target_title: str,
+    cached_items: List[Dict[str, Any]],
+    lang: str = "nl"
+) -> Optional[Dict[str, Any]]:
+    """
+    Match a target article against local parsed/exported items:
+    1. Match by slug (or slug prefix before ~)
+    2. Match by title similarity >= 0.70
+    """
+    if not cached_items:
+        return None
+
+    clean_slug = (target_slug or "").strip().lower().replace("-copy", "")
+    clean_title = (target_title or "").strip()
+
+    # 1. Check slug
+    if clean_slug:
+        for it in cached_items:
+            it_slug = (it.get("slug", {}).get(lang) or it.get("slug", {}).get("nl") or "").lower()
+            if it_slug and (it_slug == clean_slug or it_slug.startswith(clean_slug) or clean_slug.startswith(it_slug)):
+                return it
+
+    # 2. Check title similarity
+    if clean_title:
+        best_item = None
+        best_score = 0.0
+        for it in cached_items:
+            it_title = it.get("name", {}).get(lang) or it.get("name", {}).get("nl") or ""
+            score = calculate_similarity(clean_title, it_title)
+            if score > best_score:
+                best_score = score
+                best_item = it
+        if best_item and best_score >= 0.65:
+            return best_item
+
+    return None
 
 def match_source_post(
     target_slug: str,
@@ -181,7 +241,8 @@ def extract_social_embed_urls(raw_html: str) -> Dict[str, List[str]]:
 def discover_target_articles(
     base_url: str = "https://test13242.mach3blocks.io",
     archive_path: str = "/nl/tips-advies/",
-    max_pages: int = 10
+    max_pages: int = 10,
+    progress_callback = None
 ) -> List[Dict[str, str]]:
     """
     Crawl archive pagination on target site and collect published article URLs and slugs.
@@ -189,6 +250,7 @@ def discover_target_articles(
     1. Standard domain archive: e.g. https://test13242.mach3blocks.io/nl/tips-advies/
     2. Mach3Blocks Preview overview: e.g. https://app.mach3blocks.io/preview/?wid=113568&pid=...&pkey=...
     3. Custom overview URLs with query params.
+    max_pages <= 0 means crawl ALL available pages until pagination ends.
     """
     found_articles = []
     seen_urls = set()
@@ -197,12 +259,13 @@ def discover_target_articles(
     parsed_input = urllib.parse.urlparse(base_url.strip())
     domain_base = f"{parsed_input.scheme}://{parsed_input.netloc}"
 
-    # Check if input URL is already a full overview URL with query params (e.g. preview)
     is_preview = "preview" in parsed_input.path or "app.mach3blocks.io" in parsed_input.netloc or bool(parsed_input.query)
 
-    for page in range(1, max_pages + 1):
+    page = 1
+    max_limit = 1000 if max_pages <= 0 else max_pages
+
+    while page <= max_limit:
         if is_preview:
-            # Construct page URL by updating/adding &page=N
             qs = urllib.parse.parse_qs(parsed_input.query)
             if page > 1:
                 qs['page'] = [str(page)]
@@ -225,6 +288,9 @@ def discover_target_articles(
             else:
                 delim = "&" if "?" in clean_path else "?"
                 page_url = f"{clean_base}{clean_path}{delim}page={page}"
+
+        if progress_callback:
+            progress_callback(page, len(found_articles))
 
         try:
             req = urllib.request.Request(page_url, headers={"User-Agent": USER_AGENT})
@@ -272,6 +338,8 @@ def discover_target_articles(
 
         if new_on_page == 0:
             break
+
+        page += 1
 
     return found_articles
 
