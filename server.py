@@ -183,7 +183,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache, no-transform")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.send_header("X-Accel-Buffering", "no")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
@@ -279,6 +279,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 "total": total,
                 "data": analysis_result
             })
+            self.close_connection = True
         except Exception as e:
             try:
                 send_event({
@@ -287,6 +288,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 })
             except Exception:
                 pass
+            self.close_connection = True
         finally:
             coordinator.set_ready("translation_agent")
 
@@ -373,7 +375,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-cache, no-transform")
-        self.send_header("Connection", "keep-alive")
+        self.send_header("Connection", "close")
         self.send_header("X-Accel-Buffering", "no")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
@@ -458,6 +460,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 "total": total,
                 "data": final_result
             })
+            self.close_connection = True
         except Exception as e:
             try:
                 send_event({
@@ -466,6 +469,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 })
             except Exception:
                 pass
+            self.close_connection = True
         finally:
             coordinator.set_ready("content_agent")
             coordinator.set_ready("taxonomy_agent")

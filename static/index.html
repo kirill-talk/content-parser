@@ -703,8 +703,19 @@
                                 progressBarFill.style.width = '100%';
                                 progressCounter.textContent = `${evt.total} / ${evt.total} (100%)`;
                                 progressStatus.textContent = `Analysis complete! Checked ${evt.total} articles.`;
-                                progressCurrentTitle.textContent = 'Compiling translation matrix table...';
+                                progressCurrentTitle.textContent = 'Rendering translation matrix table...';
                                 analysisItems = evt.data;
+                                // Immediately render analysis without waiting for stream EOF
+                                try {
+                                    const detectData = await detectPromise;
+                                    analysisBox.style.display = 'block';
+                                    renderAnalysis(analysisItems, detectData);
+                                    setTimeout(() => {
+                                        if (progressBox) progressBox.style.display = 'none';
+                                    }, 1500);
+                                } catch (_) {}
+                                try { reader.cancel(); } catch (_) {}
+                                break;
                             } else if (evt.type === 'error') {
                                 throw new Error(evt.error || 'Analysis error');
                             }
@@ -712,19 +723,12 @@
                             console.error('Error parsing SSE event:', parseErr, jsonStr);
                         }
                     }
+                    if (analysisItems) break;
                 }
 
                 if (!analysisItems) {
                     throw new Error("No analysis data received from server.");
                 }
-
-                const detectData = await detectPromise;
-                analysisBox.style.display = 'block';
-                renderAnalysis(analysisItems, detectData);
-
-                setTimeout(() => {
-                    if (progressBox) progressBox.style.display = 'none';
-                }, 1500);
 
             } catch (e) {
                 progressBox.style.display = 'none';
@@ -873,6 +877,15 @@
                                 progressStatus.textContent = `Done! Successfully transformed ${evt.total} articles.`;
                                 progressCurrentTitle.textContent = 'All blocks processed and structured.';
                                 finalData = evt.data;
+                                // Immediately render results without hanging on open connection
+                                currentData = finalData;
+                                renderResults(finalData);
+                                exportBtn.disabled = false;
+                                setTimeout(() => {
+                                    if (progressBox) progressBox.style.display = 'none';
+                                }, 1500);
+                                try { reader.cancel(); } catch (_) {}
+                                break;
                             } else if (evt.type === 'error') {
                                 throw new Error(evt.error || 'Parsing error');
                             }
@@ -880,20 +893,12 @@
                             console.error('Error handling event message:', parseErr, jsonStr);
                         }
                     }
+                    if (finalData) break;
                 }
 
                 if (!finalData) {
                     throw new Error("Did not receive completed dataset from server.");
                 }
-
-                currentData = finalData;
-                renderResults(finalData);
-                exportBtn.disabled = false;
-
-                // Hide progress box smoothly after brief delay
-                setTimeout(() => {
-                    if (progressBox) progressBox.style.display = 'none';
-                }, 2500);
 
             } catch (err) {
                 console.error(err);
