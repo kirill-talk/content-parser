@@ -634,12 +634,24 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
     def handle_api_verify_stream(self, params):
         """
         Stream verification process events via Server-Sent Events (SSE).
-        Crawls target site articles, matches against source WP posts, and computes side-by-side diffs.
+        Supports:
+        - target_url: archive base or single article URL
+        - mode: 'all' (all target articles), 'range' (from N to N), 'single' (one specific URL/slug)
+        - from, to: range bounds
+        - slug / identifier: single article check
+        - max_pages: number of archive pages to crawl
+        - only_embeds: filter articles with social embeds
+        - limit: max articles
+        - keep-alive SSE pings
         """
         target_base = params.get("target_url", ["https://test13242.mach3blocks.io"])[0].rstrip("/")
         max_target_pages = int(params.get("max_pages", [5])[0])
         only_embeds = params.get("only_embeds", ["0"])[0] in ["1", "true", "yes"]
         limit = int(params.get("limit", [50])[0])
+        mode = params.get("mode", ["recent"])[0]
+        from_n = params.get("from", [None])[0]
+        to_n = params.get("to", [None])[0]
+        identifier = params.get("identifier", [None])[0]
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
@@ -654,27 +666,81 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(payload)
             self.wfile.flush()
 
+        def send_ping():
+            try:
+                self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+            except Exception:
+                pass
+
         coordinator.set_busy("content_agent", "Verifying content against target site")
 
         try:
-            send_event({
-                "type": "status",
-                "phase": "crawling_target",
-                "message": f"Crawling published articles from {target_base}/nl/tips-advies/..."
-            })
+            target_articles = []
 
-            target_articles = discover_target_articles(
-                base_url=target_base,
-                archive_path="/nl/tips-advies/",
-                max_pages=max_target_pages
-            )
+            # Handle Single Mode
+            if mode == "single" and identifier:
+                clean_ident = identifier.strip()
+                # If full target URL passed
+                if clean_ident.startswith("http://") or clean_ident.startswith("https://"):
+                    p_path = urllib.parse.urlparse(clean_ident).path
+                    # Extract slug without trailing slash
+                    parts = [p for p in p_path.split("/") if p]
+                    full_target_url = clean_ident if clean_ident.endswith("/") else clean_ident + "/"
+                    slug_part = parts[-1] if parts else clean_ident
+                    if "~" in slug_part:
+                        base_slug, nano_id = slug_part.split("~", 1)
+                    else:
+                        base_slug, nano_id = slug_part, ""
+                    target_articles = [{
+                        "url": full_target_url,
+                        "slug": base_slug,
+                        "nano_id": nano_id,
+                        "path": p_path
+                    }]
+                else:
+                    # Clean slug
+                    base_slug = clean_ident.split("~")[0]
+                    target_articles = [{
+                        "url": f"{target_base}/nl/blog/{clean_ident}/",
+                        "slug": base_slug,
+                        "nano_id": "",
+                        "path": f"/nl/blog/{clean_ident}/"
+                    }]
 
-            send_event({
-                "type": "status",
-                "phase": "target_found",
-                "total_target": len(target_articles),
-                "message": f"Discovered {len(target_articles)} published article URLs on target site."
-            })
+                send_event({
+                    "type": "status",
+                    "phase": "target_found",
+                    "total_target": 1,
+                    "message": f"Single article verification targeted: {target_articles[0]['slug']}"
+                })
+            else:
+                send_event({
+                    "type": "status",
+                    "phase": "crawling_target",
+                    "message": f"Crawling published articles from {target_base}/nl/tips-advies/..."
+                })
+
+                send_ping()
+                crawled = discover_target_articles(
+                    base_url=target_base,
+                    archive_path="/nl/tips-advies/",
+                    max_pages=max_target_pages
+                )
+
+                if mode == "range" and from_n is not None and to_n is not None:
+                    start_idx = max(0, int(from_n) - 1)
+                    end_idx = min(len(crawled), int(to_n))
+                    target_articles = crawled[start_idx:end_idx]
+                else:
+                    target_articles = crawled[:limit]
+
+                send_event({
+                    "type": "status",
+                    "phase": "target_found",
+                    "total_target": len(target_articles),
+                    "message": f"Discovered {len(crawled)} target articles. Selected {len(target_articles)} for verification."
+                })
 
             if not target_articles:
                 send_event({
@@ -685,38 +751,30 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     "failed": 0,
                     "missing": 0,
                     "items": [],
-                    "message": "No published articles found on target site."
+                    "message": "No published articles found matching the criteria."
                 })
                 return
 
-            # Map target articles by base slug
-            target_by_slug = {}
-            for t in target_articles:
-                s = t["slug"]
-                if s not in target_by_slug:
-                    target_by_slug[s] = t
-
-            # Fetch source WP articles to match
-            # If limit is specified, cap target items to verify
-            articles_to_verify = target_articles[:limit]
-
+            articles_to_verify = target_articles
             passed_count = 0
             warn_count = 0
             failed_count = 0
             missing_embeds_count = 0
-
             verified_results = []
 
             for idx, target_item in enumerate(articles_to_verify):
                 t_url = target_item["url"]
                 t_slug = target_item["slug"]
 
+                send_ping()
                 send_event({
                     "type": "progress",
                     "current": idx + 1,
                     "total": len(articles_to_verify),
                     "slug": t_slug,
-                    "message": f"Checking [{idx + 1}/{len(articles_to_verify)}]: {t_slug}"
+                    "title": t_slug,
+                    "percent": round(((idx + 1) / len(articles_to_verify)) * 100),
+                    "message": f"Verifying [{idx + 1}/{len(articles_to_verify)}]: {t_slug}"
                 })
 
                 # Fetch Target HTML
@@ -736,6 +794,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     failed_count += 1
                     continue
 
+                send_ping()
                 # Intelligently find matching WP source post
                 source_post = match_source_post(
                     target_slug=t_slug,
@@ -744,7 +803,6 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 )
 
                 if not source_post:
-                    # Target post has no source counterpart
                     item_res = {
                         "status": "MISSING_SOURCE",
                         "slug": t_slug,

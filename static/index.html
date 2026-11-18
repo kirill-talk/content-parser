@@ -616,30 +616,67 @@
             <div id="verifyView" style="display: none;">
                 <div class="filter-panel" style="margin-bottom: 20px;">
                     <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
-                        <div style="flex: 2; min-width: 300px;">
+                        <div class="tool-group">
                             <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Target Site Section (Archive URL)
+                                Verification Mode
                             </label>
-                            <input type="text" id="verifyTargetUrl" value="https://test13242.mach3blocks.io" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                            <select id="verifyModeSelect" onchange="toggleVerifyMode()" style="background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                <option value="recent">Recent Target Posts</option>
+                                <option value="range">Range (from N to N)</option>
+                                <option value="single">Single Target Article</option>
+                            </select>
                         </div>
-                        <div style="flex: 1; min-width: 120px;">
+
+                        <div style="flex: 2; min-width: 260px;" id="verifyTargetUrlGroup">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Target Site Domain
+                            </label>
+                            <input type="text" id="verifyTargetUrl" value="https://test13242.mach3blocks.io" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                        </div>
+
+                        <div style="flex: 1; min-width: 110px;" id="verifyMaxPagesGroup">
                             <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
                                 Pages to Crawl
                             </label>
-                            <input type="number" id="verifyMaxPages" value="3" min="1" max="20" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                            <input type="number" id="verifyMaxPages" value="3" min="1" max="20" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
                         </div>
-                        <div style="flex: 1; min-width: 120px;">
+
+                        <div style="flex: 1; min-width: 110px;" id="verifyLimitGroup">
                             <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
                                 Max Articles
                             </label>
-                            <input type="number" id="verifyLimit" value="25" min="1" max="100" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                            <input type="number" id="verifyLimit" value="25" min="1" max="100" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
                         </div>
+
+                        <div style="display: none; align-items: center; gap: 8px;" id="verifyRangeGroup">
+                            <div>
+                                <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                    From Index
+                                </label>
+                                <input type="number" id="verifyFromInput" value="1" min="1" style="width: 80px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                    To Index
+                                </label>
+                                <input type="number" id="verifyToInput" value="10" min="1" style="width: 80px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                            </div>
+                        </div>
+
+                        <div style="display: none; flex: 2; min-width: 320px;" id="verifySingleGroup">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Target Article URL or Slug
+                            </label>
+                            <input type="text" id="verifyIdentifier" placeholder="https://test13242.mach3blocks.io/nl/blog/slug~id/ or slug" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                        </div>
+
                         <div style="display: flex; align-items: center; gap: 8px; padding-bottom: 8px;">
                             <input type="checkbox" id="verifyOnlyEmbeds" style="cursor: pointer;">
                             <label for="verifyOnlyEmbeds" style="font-size: 13px; color: #c9d1d9; cursor: pointer; user-select: none;">
                                 Focus on Instagram / TikTok
                             </label>
                         </div>
+
                         <div style="display: flex; gap: 10px;">
                             <button id="btnStartVerify" class="btn-parse" onclick="startVerification()" style="height: 38px; display: flex; align-items: center; gap: 8px;">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -676,10 +713,19 @@
                     </div>
                 </div>
 
-                <!-- Live Progress Message -->
-                <div id="verifyStatusBox" style="display: none; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: #58a6ff; align-items: center; gap: 10px;">
-                    <span class="spinner" style="width: 14px; height: 14px; border: 2px solid #58a6ff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite;"></span>
-                    <span id="verifyStatusText">Initializing crawler...</span>
+                <!-- Live Progress Box -->
+                <div id="verifyProgressContainer" style="display: none;" class="progress-box">
+                    <div class="progress-header">
+                        <div class="progress-status" id="verifyProgressStatus">Initializing crawler...</div>
+                        <div class="progress-counter" id="verifyProgressCounter">0 / 0 (0%)</div>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="verifyProgressBarFill"></div>
+                    </div>
+                    <div class="progress-current-article" id="verifyCurrentArticle">
+                        <span class="progress-tag">CHECKING</span>
+                        <span id="verifyCurrentTitle">Connecting to Mach3Blocks archive...</span>
+                    </div>
                 </div>
 
                 <!-- Verification Results Table -->
@@ -1563,99 +1609,258 @@
         // ==========================================
         // CONTENT VERIFICATION & TESTING LOGIC
         // ==========================================
-        let verifyEventSource = null;
+        let verifyAbortController = null;
+        let verifyStreamReader = null;
         let verifiedItemsList = [];
         let currentInspectedItem = null;
 
-        function startVerification() {
+        function toggleVerifyMode() {
+            const mode = document.getElementById('verifyModeSelect').value;
+            const targetUrlGroup = document.getElementById('verifyTargetUrlGroup');
+            const maxPagesGroup = document.getElementById('verifyMaxPagesGroup');
+            const limitGroup = document.getElementById('verifyLimitGroup');
+            const rangeGroup = document.getElementById('verifyRangeGroup');
+            const singleGroup = document.getElementById('verifySingleGroup');
+
+            if (mode === 'recent') {
+                targetUrlGroup.style.display = 'block';
+                maxPagesGroup.style.display = 'block';
+                limitGroup.style.display = 'block';
+                rangeGroup.style.display = 'none';
+                singleGroup.style.display = 'none';
+            } else if (mode === 'range') {
+                targetUrlGroup.style.display = 'block';
+                maxPagesGroup.style.display = 'block';
+                limitGroup.style.display = 'none';
+                rangeGroup.style.display = 'flex';
+                singleGroup.style.display = 'none';
+            } else if (mode === 'single') {
+                targetUrlGroup.style.display = 'none';
+                maxPagesGroup.style.display = 'none';
+                limitGroup.style.display = 'none';
+                rangeGroup.style.display = 'none';
+                singleGroup.style.display = 'block';
+            }
+        }
+
+        async function startVerification() {
+            const mode = document.getElementById('verifyModeSelect').value;
             const targetUrl = document.getElementById('verifyTargetUrl').value.trim();
             const maxPages = document.getElementById('verifyMaxPages').value;
             const limit = document.getElementById('verifyLimit').value;
+            const fromN = document.getElementById('verifyFromInput').value;
+            const toN = document.getElementById('verifyToInput').value;
+            const identifier = document.getElementById('verifyIdentifier').value.trim();
             const onlyEmbeds = document.getElementById('verifyOnlyEmbeds').checked;
 
             const btnStart = document.getElementById('btnStartVerify');
             const btnCancel = document.getElementById('btnCancelVerify');
-            const statusBox = document.getElementById('verifyStatusBox');
-            const statusText = document.getElementById('verifyStatusText');
+            const progressBox = document.getElementById('verifyProgressContainer');
+            const progressStatus = document.getElementById('verifyProgressStatus');
+            const progressCounter = document.getElementById('verifyProgressCounter');
+            const progressBarFill = document.getElementById('verifyProgressBarFill');
+            const progressCurrentTitle = document.getElementById('verifyCurrentTitle');
             const tableBody = document.getElementById('verifyTableBody');
+
+            let queryParams = `mode=${mode}&only_embeds=${onlyEmbeds ? '1' : '0'}`;
+            if (mode === 'recent') {
+                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&max_pages=${maxPages}&limit=${limit}`;
+            } else if (mode === 'range') {
+                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&max_pages=${maxPages}&from=${fromN}&to=${toN}`;
+            } else if (mode === 'single') {
+                if (!identifier) {
+                    alert("Please enter a target article URL or slug to verify.");
+                    return;
+                }
+                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&identifier=${encodeURIComponent(identifier)}`;
+            }
 
             btnStart.style.display = 'none';
             btnCancel.style.display = 'inline-block';
-            statusBox.style.display = 'flex';
-            statusText.textContent = 'Connecting and crawling target site archive...';
+            progressBox.style.display = 'block';
+            progressBarFill.style.width = '0%';
+            progressCounter.textContent = '0%';
+            progressStatus.textContent = 'Connecting to target archive & crawling...';
+            progressCurrentTitle.textContent = 'Scanning published articles...';
 
-            // Reset KPIs
+            // Reset KPIs and table
             document.getElementById('kpiTotal').textContent = '0';
             document.getElementById('kpiPassed').textContent = '0';
             document.getElementById('kpiWarn').textContent = '0';
             document.getElementById('kpiFailed').textContent = '0';
             document.getElementById('kpiEmbeds').textContent = '0';
-
             verifiedItemsList = [];
             tableBody.innerHTML = '';
 
-            const params = new URLSearchParams({
-                target_url: targetUrl,
-                max_pages: maxPages,
-                limit: limit,
-                only_embeds: onlyEmbeds ? '1' : '0'
-            });
+            let retryCount = 0;
+            const maxRetries = 3;
+            let isCompleted = false;
 
-            if (verifyEventSource) {
-                verifyEventSource.close();
-            }
-
-            verifyEventSource = new EventSource(`/api/verify/stream?${params.toString()}`);
-
-            verifyEventSource.onmessage = function(e) {
+            while (retryCount <= maxRetries && !isCompleted) {
                 try {
-                    const data = JSON.parse(e.data);
-                    if (data.type === 'status' || data.type === 'progress') {
-                        statusText.textContent = data.message || `Processing item ${data.current} of ${data.total}`;
-                    } else if (data.type === 'item_verified') {
-                        verifiedItemsList.push(data.item);
-                        appendVerifyTableRow(data.item, verifiedItemsList.length - 1);
-                        updateVerifyKPIs();
-                    } else if (data.type === 'complete') {
-                        statusText.textContent = data.message;
-                        document.querySelector('#verifyStatusBox .spinner').style.display = 'none';
-                        btnStart.style.display = 'inline-block';
-                        btnCancel.style.display = 'none';
-                        verifyEventSource.close();
-                        verifyEventSource = null;
-                    } else if (data.type === 'error') {
-                        statusText.textContent = `Error: ${data.message}`;
-                        statusText.style.color = '#f85149';
-                        btnStart.style.display = 'inline-block';
-                        btnCancel.style.display = 'none';
-                        verifyEventSource.close();
-                        verifyEventSource = null;
-                    }
-                } catch (err) {
-                    console.error("SSE parse error", err);
-                }
-            };
+                    verifyAbortController = new AbortController();
+                    const signal = verifyAbortController.signal;
 
-            verifyEventSource.onerror = function() {
-                statusText.textContent = 'Connection lost or stream finished.';
-                btnStart.style.display = 'inline-block';
-                btnCancel.style.display = 'none';
-                if (verifyEventSource) {
-                    verifyEventSource.close();
-                    verifyEventSource = null;
+                    const resp = await fetch(`/api/verify/stream?${queryParams}`, { signal });
+                    if (!resp.ok) throw new Error(`Server returned HTTP ${resp.status}`);
+
+                    const reader = resp.body.getReader();
+                    verifyStreamReader = reader;
+                    const decoder = new TextDecoder('utf-8');
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n\n');
+                        buffer = lines.pop();
+
+                        for (const rawEvt of lines) {
+                            const trimmed = rawEvt.trim();
+                            if (!trimmed.startsWith('data: ')) continue;
+                            const jsonStr = trimmed.slice(6);
+                            try {
+                                const evt = JSON.parse(jsonStr);
+
+                                if (evt.type === 'status') {
+                                    progressStatus.textContent = evt.message;
+                                    progressCurrentTitle.textContent = `Discovered ${evt.total_target || 0} articles`;
+                                } else if (evt.type === 'progress') {
+                                    const percent = evt.percent || Math.round((evt.current / evt.total) * 100);
+                                    progressBarFill.style.width = `${percent}%`;
+                                    progressCounter.textContent = `${evt.current} / ${evt.total} (${percent}%)`;
+                                    progressStatus.textContent = `Checking article ${evt.current} of ${evt.total}...`;
+                                    progressCurrentTitle.textContent = evt.slug || `Article ${evt.current}`;
+                                } else if (evt.type === 'item_verified') {
+                                    // Check if item already exists to avoid duplicates on auto-reconnect
+                                    const existingIdx = verifiedItemsList.findIndex(x => x.target_url === evt.item.target_url);
+                                    if (existingIdx >= 0) {
+                                        verifiedItemsList[existingIdx] = evt.item;
+                                        updateVerifyTableRow(evt.item, existingIdx);
+                                    } else {
+                                        verifiedItemsList.push(evt.item);
+                                        appendVerifyTableRow(evt.item, verifiedItemsList.length - 1);
+                                    }
+                                    updateVerifyKPIs();
+                                } else if (evt.type === 'complete') {
+                                    isCompleted = true;
+                                    progressBarFill.style.width = '100%';
+                                    progressCounter.textContent = `Done (${evt.total})`;
+                                    progressStatus.textContent = evt.message;
+                                    progressCurrentTitle.textContent = `Passed: ${evt.passed} | Warn: ${evt.warnings} | Failed: ${evt.failed}`;
+                                    btnStart.style.display = 'inline-block';
+                                    btnCancel.style.display = 'none';
+                                    try { reader.cancel(); } catch (_) {}
+                                    break;
+                                } else if (evt.type === 'error') {
+                                    throw new Error(evt.message || 'Verification error');
+                                }
+                            } catch (parseErr) {
+                                console.error('Error handling SSE verify event:', parseErr);
+                            }
+                        }
+                        if (isCompleted) break;
+                    }
+
+                    if (isCompleted) return;
+                    throw new Error("Connection dropped before verification completed");
+
+                } catch (err) {
+                    if (err.name === 'AbortError') {
+                        console.log('Verification cancelled by user.');
+                        progressStatus.textContent = 'Operation cancelled by user.';
+                        btnStart.style.display = 'inline-block';
+                        btnCancel.style.display = 'none';
+                        return;
+                    }
+                    retryCount++;
+                    if (retryCount <= maxRetries) {
+                        progressStatus.textContent = `Connection lost. Auto-reconnecting (attempt ${retryCount}/${maxRetries})...`;
+                        progressCurrentTitle.textContent = 'Network blip / keep-alive timeout detected. Retrying...';
+                        await new Promise(r => setTimeout(r, 2000));
+                    } else {
+                        console.error("Verification failed after retries:", err);
+                        progressStatus.textContent = `Verification error: ${err.message}`;
+                        progressStatus.style.color = '#f85149';
+                        btnStart.style.display = 'inline-block';
+                        btnCancel.style.display = 'none';
+                    }
+                } finally {
+                    verifyAbortController = null;
+                    verifyStreamReader = null;
                 }
-            };
+            }
+            btnStart.style.display = 'inline-block';
+            btnCancel.style.display = 'none';
         }
 
         function cancelVerification() {
-            if (verifyEventSource) {
-                verifyEventSource.close();
-                verifyEventSource = null;
+            if (verifyAbortController) {
+                verifyAbortController.abort();
+                verifyAbortController = null;
+            }
+            if (verifyStreamReader) {
+                try { verifyStreamReader.cancel(); } catch (_) {}
+                verifyStreamReader = null;
             }
             document.getElementById('btnStartVerify').style.display = 'inline-block';
             document.getElementById('btnCancelVerify').style.display = 'none';
-            document.getElementById('verifyStatusText').textContent = 'Verification stopped by user.';
-            document.querySelector('#verifyStatusBox .spinner').style.display = 'none';
+            document.getElementById('verifyProgressStatus').textContent = 'Verification stopped by user.';
+        }
+
+        function updateVerifyTableRow(item, index) {
+            const tr = document.getElementById(`vrow_${index}`);
+            if (!tr) return;
+            const newTr = createVerifyTableRowElement(item, index);
+            tr.parentNode.replaceChild(newTr, tr);
+        }
+
+        function createVerifyTableRowElement(item, index) {
+            const tr = document.createElement('tr');
+            tr.id = `vrow_${index}`;
+
+            let statusBadge = '<span style="color:#3fb950; font-weight:700;">PASSED</span>';
+            if (item.status === 'WARNING') {
+                statusBadge = '<span style="color:#d29922; font-weight:700;">WARNING</span>';
+            } else if (item.status === 'FAILED') {
+                statusBadge = '<span style="color:#f85149; font-weight:700;">FAILED</span>';
+            } else if (item.status === 'MISSING_SOURCE') {
+                statusBadge = '<span style="color:#8b949e; font-weight:700;">NO SOURCE</span>';
+            }
+
+            const title = item.title ? (item.title.expected || item.title.actual || item.slug) : item.slug;
+            const targetLink = item.target_url ? `<a href="${item.target_url}" target="_blank" style="color: #58a6ff; font-size: 11px; text-decoration: none; margin-left: 6px;">[Target ↗]</a>` : '';
+            const sourceLink = item.source_url ? `<a href="${item.source_url}" target="_blank" style="color: #8b949e; font-size: 11px; text-decoration: none;">[Source ↗]</a>` : '';
+
+            tr.innerHTML = `
+                <td>${statusBadge}</td>
+                <td>
+                    <div style="font-weight: 600; color: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">
+                        ${title}
+                    </div>
+                    <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
+                        <code>${item.slug}</code> ${sourceLink} ${targetLink}
+                    </div>
+                </td>
+                <td>${getSimBadge(item.intro)}</td>
+                <td>${getSimBadge(item.text_1)}</td>
+                <td>${getSimBadge(item.text_2)}</td>
+                <td>${getEmbedBadge(item.embeds)}</td>
+                <td style="text-align: right;">
+                    <button class="btn-inspect" onclick="openDiffModal(${index})" style="background: #212631; border: 1px solid #30363d; color: #58a6ff; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                        Diff Inspect
+                    </button>
+                </td>
+            `;
+            return tr;
+        }
+
+        function appendVerifyTableRow(item, index) {
+            const tbody = document.getElementById('verifyTableBody');
+            const tr = createVerifyTableRowElement(item, index);
+            tbody.appendChild(tr);
         }
 
         function updateVerifyKPIs() {
