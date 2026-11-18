@@ -47,6 +47,35 @@ class ContentSplitter:
         cleaned = re.sub(r'-\d{3,4}x\d{3,4}(\.[a-zA-Z]{3,4})$', r'\1', url)
         return cleaned
 
+    def _normalize_figures(self, html_text: str) -> str:
+        """
+        Convert <figure> tags into clean <p><img...></p> without styles.
+        Convert <figcaption> into <p class="heading-6 dark">...</h3>.
+        """
+        def figure_repl(match):
+            content = match.group(1)
+            caption_match = re.search(r'<figcaption[^>]*>(.*?)</figcaption>', content, re.DOTALL | re.IGNORECASE)
+            caption_html = ""
+            if caption_match:
+                caption_text = re.sub(r'<[^>]+>', '', caption_match.group(1)).strip()
+                if caption_text:
+                    caption_html = f'\r\n<p class="heading-6 dark">{caption_text}</p>'
+                content = content[:caption_match.start()] + content[caption_match.end():]
+
+            # Extract image src and alt
+            src_m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', content, re.IGNORECASE)
+            alt_m = re.search(r'<img[^>]+alt=["\']([^"\']*)["\']', content, re.IGNORECASE)
+
+            if src_m:
+                clean_src = self._clean_img_url(src_m.group(1))
+                alt_val = alt_m.group(1) if alt_m else ""
+                return f'<p><img src="{clean_src}" alt="{alt_val}"></p>{caption_html}'
+
+            # Fallback if no img tag found
+            return f'<p>{content.strip()}</p>{caption_html}'
+
+        return re.sub(r'<figure[^>]*>(.*?)</figure>', figure_repl, html_text, flags=re.DOTALL | re.IGNORECASE)
+
     def _extract_img_info(self, element_html: str) -> dict:
         """Extract src, alt, caption from an img or figure block, preferring original size."""
         src_match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', element_html, re.IGNORECASE)
@@ -163,6 +192,10 @@ class ContentSplitter:
             text_1_html = ""
 
         text_2_html = self._normalize_headings("\r\n".join(text_buckets[1]))
+        
+        # Convert any remaining figures inside text_1 and text_2 into clean <p><img...></p> and <p class="heading-6 dark">
+        text_1_html = self._normalize_figures(text_1_html)
+        text_2_html = self._normalize_figures(text_2_html)
         
         # If text_1 ended up empty, distribute from text_2 or intro
         if not text_1_html and text_2_html:
