@@ -36,13 +36,26 @@ class ContentSplitter:
         return block.strip()
 
     def _normalize_headings(self, html_text: str) -> str:
-        """Convert all h1-h6 headings to <h3 class="heading-3 dark">...</h3>."""
-        return re.sub(
-            r'<h[1-6][^>]*>(.*?)</h[1-6]>',
+        """
+        Convert headings inside content:
+        - <h2> and <h1> to <h2 class="heading-1 dark">...</h2>
+        - <h3> through <h6> to <h3 class="heading-3 dark">...</h3>
+        """
+        # Convert h1 and h2
+        html_text = re.sub(
+            r'<h[12][^>]*>(.*?)</h[12]>',
+            r'<h2 class="heading-1 dark">\1</h2>',
+            html_text,
+            flags=re.DOTALL | re.IGNORECASE
+        )
+        # Convert h3, h4, h5, h6
+        html_text = re.sub(
+            r'<h[3-6][^>]*>(.*?)</h[3-6]>',
             r'<h3 class="heading-3 dark">\1</h3>',
             html_text,
             flags=re.DOTALL | re.IGNORECASE
         )
+        return html_text
 
     def _clean_img_url(self, url: str) -> str:
         """Strip WordPress auto-generated thumbnail dimension suffixes like -1067x1600.jpg to get original full-size image."""
@@ -198,25 +211,10 @@ class ContentSplitter:
         media_3_text = media_blocks[1]["caption"] if len(media_blocks) > 1 else ""
         
         # Normalize headings across text blocks:
-        # Convert first h2/heading in text_1 into <h2 class="heading-1 dark">...</h2>
-        # Normalize all other headings into <h3 class="heading-3 dark">...</h3>
-        bucket_0 = text_buckets[0]
-        has_lead_h2 = False
-        if bucket_0 and re.match(r'^<h[1-6][^>]*>', bucket_0[0], re.IGNORECASE):
-            lead_h2 = bucket_0.pop(0)
-            inner_text = re.sub(r'<[^>]+>', '', lead_h2).strip()
-            bucket_0.insert(0, f'<h2 class="heading-1 dark">{inner_text}</h2>')
-            has_lead_h2 = True
-
-        if has_lead_h2 and len(bucket_0) > 1:
-            rest_html = self._normalize_headings("\r\n".join(bucket_0[1:]))
-            text_1_html = bucket_0[0] + "\r\n" + rest_html
-        elif bucket_0:
-            text_1_html = self._normalize_headings("\r\n".join(bucket_0))
-        else:
-            text_1_html = ""
-
-        text_2_html = self._normalize_headings("\r\n".join(text_buckets[1]))
+        # All <h2>/<h1> become <h2 class="heading-1 dark">...</h2>
+        # All <h3>-<h6> become <h3 class="heading-3 dark">...</h3>
+        text_1_html = self._normalize_headings("\r\n".join(text_buckets[0])) if text_buckets[0] else ""
+        text_2_html = self._normalize_headings("\r\n".join(text_buckets[1])) if text_buckets[1] else ""
         
         # Convert any remaining figures inside text_1 and text_2 into clean <p><img...></p> and <p class="heading-6 dark">
         text_1_html = self._normalize_figures(text_1_html)
