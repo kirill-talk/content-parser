@@ -261,8 +261,29 @@
         
         .field-lang-block { margin-top: 6px; font-size: 12.5px; color: #cbd5e1; }
         .lang-prefix { font-size: 10px; font-weight: bold; color: #f59e0b; background: rgba(245, 158, 11, 0.1); padding: 1px 4px; border-radius: 3px; margin-right: 6px; text-transform: uppercase; }
-        .field-preview { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; max-height: 140px; overflow-y: auto; word-break: break-word; }
+        .field-preview { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.03); border-radius: 6px; padding: 8px 10px; font-size: 12.5px; max-height: 180px; overflow-y: auto; word-break: break-word; line-height: 1.6; }
         .field-preview img { max-width: 100%; border-radius: 6px; margin-top: 6px; }
+        .field-preview h3.heading-3 { font-size: 14px; font-weight: 700; color: #fff; margin: 8px 0 4px 0; }
+        .field-preview p { margin: 4px 0; }
+        .field-preview ul, .field-preview ol {
+            margin: 6px 0 8px 0;
+            padding-left: 20px;
+            list-style-position: outside;
+        }
+        .field-preview ul {
+            list-style-type: disc;
+        }
+        .field-preview ol {
+            list-style-type: decimal;
+        }
+        .field-preview li {
+            margin-bottom: 4px;
+            color: #cbd5e1;
+            line-height: 1.5;
+        }
+        .field-preview li::marker {
+            color: var(--accent);
+        }
 
         /* Taxonomy Mapping Table */
         .mapping-table-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
