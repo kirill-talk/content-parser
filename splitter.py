@@ -20,14 +20,19 @@ class ContentSplitter:
         self.post_title = (post_title or "").strip()
         
     def _clean_block(self, block: str) -> str:
-        """Strip WordPress more tags, clean spacing."""
+        """Strip WordPress more tags, clean spacing, and remove internal reading recommendations."""
         block = re.sub(r'<!--\s*more\s*-->', '', block)
         block = re.sub(r'<span id="more-\d+"></span>', '', block)
+        # Normalize non-breaking spaces
+        block = block.replace('&nbsp;', ' ').replace('\xa0', ' ')
         # Strip "Lees ook: ...", "Also read: ...", "Lesen Sie auch: ...", "Lire aussi : ..."
         # recommendations to keep imported content clean from old external internal links
-        block = re.sub(r'<(?:p|h[1-6])>\s*(?:<strong>|<em>)?\s*(?:Lees ook|Also read|Lesen Sie auch|À lire aussi|Lire aussi)\s*:\s*.*?</(?:p|h[1-6])>', '', block, flags=re.DOTALL | re.IGNORECASE)
-        # Catch non-breaking space variants (\xa0 / &nbsp;)
-        block = re.sub(r'<(?:p|h[1-6])>[^<]*(?:Lees ook|Also read|Lesen Sie auch|À lire aussi|Lire aussi)[^<]*<a\s+[^>]*>.*?</(?:p|h[1-6])>', '', block, flags=re.DOTALL | re.IGNORECASE)
+        block = re.sub(
+            r'<([a-zA-Z0-9]+)[^>]*>\s*(?:<[^>]+>)*\s*(?:Lees ook|Also read|Lesen Sie auch|À lire aussi|Lire aussi)\s*:?\s*.*?</\1>',
+            '',
+            block,
+            flags=re.DOTALL | re.IGNORECASE
+        )
         return block.strip()
 
     def _normalize_headings(self, html_text: str) -> str:
@@ -104,6 +109,21 @@ class ContentSplitter:
             return insta_url, text
         return "", text
 
+    def _clean_tag_attributes(self, html_text: str) -> str:
+        """Strip internal WordPress attributes (e.g. data-start, data-end, style) while preserving link href/target and heading styles."""
+        def repl(m):
+            slash = m.group(1) or ''
+            tag = m.group(2).lower()
+            full = m.group(0)
+            if slash:
+                return f'</{tag}>'
+            if tag in ('a', 'img'):
+                return full
+            if 'class="heading-' in full:
+                return full
+            return f'<{tag}>'
+        return re.sub(r'<(/)?([a-zA-Z0-9]+)(?:\s+[^>]*)?>', repl, html_text)
+
     def split(self) -> dict:
         """Split content into structured slots."""
         # 1. Instagram check
@@ -115,22 +135,27 @@ class ContentSplitter:
         
         if "<!--more-->" in clean_html:
             parts = clean_html.split("<!--more-->", 1)
-            intro_candidate = self._clean_block(parts[0])
+            raw_intro = self._clean_block(parts[0])
             body_html = parts[1]
-            if intro_candidate.startswith("<p>"):
-                intro_text = intro_candidate
+            # Strip trailing unclosed or empty <p ...> tags left by more split
+            cleaned_intro = re.sub(r'<p(?:\s+[^>]*)?>\s*$', '', raw_intro).strip()
+            # Clean attributes from <p ...> tags to <p>
+            cleaned_intro = re.sub(r'<(/)?p(?:\s+[^>]*)?>', r'<\1p>', cleaned_intro)
+            if cleaned_intro.startswith("<p>"):
+                intro_text = cleaned_intro
             else:
-                intro_text = f"<p>{intro_candidate}</p>"
+                intro_text = f"<p>{cleaned_intro}</p>"
         else:
-            first_p = re.search(r'<p>(.*?)</p>', clean_html, re.DOTALL | re.IGNORECASE)
+            first_p = re.search(r'<p(?:\s+[^>]*)?>(.*?)</p>', clean_html, re.DOTALL | re.IGNORECASE)
             if first_p:
-                intro_text = f"<p>{first_p.group(1).strip()}</p>"
+                intro_content = first_p.group(1).strip()
+                intro_text = f"<p>{intro_content}</p>"
                 body_html = clean_html[first_p.end():]
         
         # 3. Tokenize body_html into top-level blocks: <figure>, <img>, <h2>, <h3>, <p>, <ul>, etc.
-        # Pattern matches figure blocks, standalone images, or general paragraphs/headings
+        # Pattern matches figure blocks, standalone images, or general paragraphs/headings (with attributes like data-start)
         block_pattern = re.compile(
-            r'(<figure[^>]*>.*?</figure>|<p>\s*<img[^>]+>\s*</p>|<img[^>]+>|<h[2-6][^>]*>.*?</h[2-6]>|<p>.*?</p>|<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>)',
+            r'(<figure[^>]*>.*?</figure>|<p[^>]*>\s*<img[^>]+>\s*</p>|<img[^>]+>|<h[1-6][^>]*>.*?</h[1-6]>|<p[^>]*>.*?</p>|<ul[^>]*>.*?</ul>|<ol[^>]*>.*?</ol>|<blockquote[^>]*>.*?</blockquote>)',
             re.DOTALL | re.IGNORECASE
         )
         
@@ -196,6 +221,11 @@ class ContentSplitter:
         # Convert any remaining figures inside text_1 and text_2 into clean <p><img...></p> and <p class="heading-6 dark">
         text_1_html = self._normalize_figures(text_1_html)
         text_2_html = self._normalize_figures(text_2_html)
+
+        # Strip remaining internal WordPress attributes (data-start, data-end, etc.)
+        text_1_html = self._clean_tag_attributes(text_1_html)
+        text_2_html = self._clean_tag_attributes(text_2_html)
+        intro_text = self._clean_tag_attributes(intro_text)
         
         # If text_1 ended up empty, distribute from text_2 or intro
         if not text_1_html and text_2_html:
