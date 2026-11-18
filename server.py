@@ -1,5 +1,5 @@
 """
-Lightweight Web Admin Server for Blog Migration Studio.
+Lightweight Web Admin Server for Content Migration Studio.
 Runs on Python standard library without any external dependencies.
 """
 
