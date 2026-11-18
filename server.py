@@ -182,8 +182,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache, no-transform")
-        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-cache, no-transform, no-store")
+        self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
@@ -192,6 +192,13 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             payload = f"data: {json.dumps(data_dict, ensure_ascii=False)}\n\n".encode("utf-8")
             self.wfile.write(payload)
             self.wfile.flush()
+
+        def send_ping():
+            try:
+                self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+            except Exception:
+                pass
 
         coordinator.set_busy("translation_agent", "Analyzing language availability")
 
@@ -264,6 +271,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     "languages": {"nl": True}
                 }
 
+                send_ping()
                 check_langs = [l for l in ["en", "de", "fr"] if l in selected_langs]
                 if check_langs:
                     with ThreadPoolExecutor(max_workers=len(check_langs)) as pool:
@@ -383,8 +391,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-cache, no-transform")
-        self.send_header("Connection", "close")
+        self.send_header("Cache-Control", "no-cache, no-transform, no-store")
+        self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
@@ -393,6 +401,13 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             payload = f"data: {json.dumps(data_dict, ensure_ascii=False)}\n\n".encode("utf-8")
             self.wfile.write(payload)
             self.wfile.flush()
+
+        def send_ping():
+            try:
+                self.wfile.write(b": ping\n\n")
+                self.wfile.flush()
+            except Exception:
+                pass
 
         coordinator.set_busy("content_agent", f"Parsing stream initiated")
         coordinator.set_busy("taxonomy_agent", "Applying taxonomy rules")
@@ -456,6 +471,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     "percent": round((idx / total) * 100)
                 })
 
+                send_ping()
                 item = transform_post(post, selected_langs=selected_langs)
                 transformed_items.append(item)
 
