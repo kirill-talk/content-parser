@@ -816,22 +816,11 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     "message": f"Loaded {len(cached_items)} locally parsed articles from cache for fast verification."
                 })
 
-            for idx, target_item in enumerate(articles_to_verify):
+            from concurrent.futures import ThreadPoolExecutor
+
+            def process_single_target(target_item):
                 t_url = target_item["url"]
                 t_slug = target_item["slug"]
-
-                send_ping()
-                send_event({
-                    "type": "progress",
-                    "current": idx + 1,
-                    "total": len(articles_to_verify),
-                    "slug": t_slug,
-                    "title": t_slug,
-                    "percent": round(((idx + 1) / len(articles_to_verify)) * 100),
-                    "message": f"Verifying [{idx + 1}/{len(articles_to_verify)}]: {t_slug}"
-                })
-
-                # Fetch Target HTML
                 target_parsed = None
                 try:
                     req_t = urllib.request.Request(t_url, headers={"User-Agent": "MigrationVerifier/1.0"})
@@ -839,17 +828,13 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                         t_html = r_t.read().decode("utf-8", errors="ignore")
                     target_parsed = parse_target_page(t_html, target_url=t_url)
                 except Exception as ex:
-                    send_event({
-                        "type": "item_error",
+                    return {
+                        "type": "error",
                         "slug": t_slug,
                         "url": t_url,
-                        "error": f"Failed to fetch target page: {str(ex)}"
-                    })
-                    failed_count += 1
-                    continue
+                        "error": str(ex)
+                    }
 
-                send_ping()
-                # 1. Try matching against locally cached parsed export items first
                 source_post = None
                 if cached_items:
                     source_post = match_cached_item(
@@ -859,7 +844,6 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                         lang="nl"
                     )
 
-                # 2. If not in cache or no cache, fallback to live WP API match
                 if not source_post:
                     source_post = match_source_post(
                         target_slug=t_slug,
@@ -868,43 +852,83 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     )
 
                 if not source_post:
-                    item_res = {
-                        "status": "MISSING_SOURCE",
-                        "slug": t_slug,
-                        "source_url": None,
-                        "target_url": t_url,
-                        "title": {"expected": "", "actual": target_parsed.get("title", ""), "similarity": 0.0, "status": "UNKNOWN"},
-                        "intro": {"expected": "", "actual": target_parsed.get("intro_text", ""), "similarity": 0.0, "status": "UNKNOWN"},
-                        "text_1": {"expected": "", "actual": target_parsed.get("text_1", ""), "similarity": 0.0, "status": "UNKNOWN"},
-                        "text_2": {"expected": "", "actual": target_parsed.get("text_2", ""), "similarity": 0.0, "status": "UNKNOWN"},
-                        "embeds": {
-                            "expected": "",
-                            "expected_type": None,
-                            "found_urls": target_parsed.get("boxes_with_data_url", []),
-                            "status": "EXTRA" if target_parsed.get("boxes_with_data_url") else "NONE"
+                    return {
+                        "type": "ok",
+                        "item": {
+                            "status": "MISSING_SOURCE",
+                            "slug": t_slug,
+                            "source_url": None,
+                            "target_url": t_url,
+                            "title": {"expected": "", "actual": target_parsed.get("title", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                            "intro": {"expected": "", "actual": target_parsed.get("intro_text", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                            "text_1": {"expected": "", "actual": target_parsed.get("text_1", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                            "text_2": {"expected": "", "actual": target_parsed.get("text_2", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                            "embeds": {
+                                "expected": "",
+                                "expected_type": None,
+                                "found_urls": target_parsed.get("boxes_with_data_url", []),
+                                "status": "EXTRA" if target_parsed.get("boxes_with_data_url") else "NONE"
+                            }
                         }
                     }
-                    warn_count += 1
                 else:
-                    item_res = compare_article(source_post, target_parsed, lang="nl")
-                    if only_embeds and not item_res["embeds"].get("expected_type"):
-                        continue
+                    return {
+                        "type": "ok",
+                        "item": compare_article(source_post, target_parsed, lang="nl")
+                    }
 
-                    if item_res["status"] == "PASSED":
-                        passed_count += 1
-                    elif item_res["status"] == "WARNING":
-                        warn_count += 1
-                    else:
+            # Process articles in concurrent workers (pool of 6 threads for ultra fast batch processing)
+            pool_workers = min(6, max(1, len(articles_to_verify)))
+            with ThreadPoolExecutor(max_workers=pool_workers) as pool:
+                futures = [pool.submit(process_single_target, item) for item in articles_to_verify]
+                for idx, fut in enumerate(futures, 1):
+                    send_ping()
+                    t_item = articles_to_verify[idx - 1]
+                    send_event({
+                        "type": "progress",
+                        "current": idx,
+                        "total": len(articles_to_verify),
+                        "slug": t_item["slug"],
+                        "title": t_item["slug"],
+                        "percent": round((idx / len(articles_to_verify)) * 100),
+                        "message": f"Verified [{idx}/{len(articles_to_verify)}]: {t_item['slug']}"
+                    })
+
+                    try:
+                        res = fut.result(timeout=20)
+                        if res["type"] == "error":
+                            send_event({
+                                "type": "item_error",
+                                "slug": res["slug"],
+                                "url": res["url"],
+                                "error": res["error"]
+                            })
+                            failed_count += 1
+                        else:
+                            item_res = res["item"]
+                            if item_res["status"] == "PASSED":
+                                passed_count += 1
+                            elif item_res["status"] == "WARNING" or item_res["status"] == "MISSING_SOURCE":
+                                warn_count += 1
+                            else:
+                                failed_count += 1
+
+                            if item_res["embeds"]["status"] == "MISSING":
+                                missing_embeds_count += 1
+
+                            verified_results.append(item_res)
+                            send_event({
+                                "type": "item_verified",
+                                "item": item_res
+                            })
+                    except Exception as ex:
                         failed_count += 1
-
-                    if item_res["embeds"]["status"] == "MISSING":
-                        missing_embeds_count += 1
-
-                verified_results.append(item_res)
-                send_event({
-                    "type": "item_verified",
-                    "item": item_res
-                })
+                        send_event({
+                            "type": "item_error",
+                            "slug": t_item["slug"],
+                            "url": t_item["url"],
+                            "error": f"Timeout or worker error: {str(ex)}"
+                        })
 
             send_event({
                 "type": "complete",

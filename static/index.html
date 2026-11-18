@@ -635,19 +635,42 @@
                             </select>
                         </div>
 
-                        <!-- 3. OPTIONS: FROM ... TO FOR ALL PAGES -->
+                        <!-- 3. OPTIONS: FROM ... TO FOR ALL PAGES + QUICK BATCHES -->
                         <div style="display: flex; align-items: flex-end; gap: 8px;" id="verifyRangeGroup">
                             <div>
                                 <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
                                     From
                                 </label>
-                                <input type="number" id="verifyFromInput" value="1" min="1" style="width: 75px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                <input type="number" id="verifyFromInput" value="1" min="1" style="width: 70px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 10px; border-radius: 6px; font-size: 13px; height: 38px;">
                             </div>
                             <div>
                                 <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
                                     To
                                 </label>
-                                <input type="number" id="verifyToInput" value="494" min="1" style="width: 75px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                <input type="number" id="verifyToInput" value="50" min="1" style="width: 70px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 10px; border-radius: 6px; font-size: 13px; height: 38px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                    Quick Batch
+                                </label>
+                                <select id="verifyBatchSelect" onchange="applyVerifyBatch(this.value)" style="background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 8px 10px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                    <option value="1-50" selected>1 – 50</option>
+                                    <option value="51-100">51 – 100</option>
+                                    <option value="101-150">101 – 150</option>
+                                    <option value="151-200">151 – 200</option>
+                                    <option value="201-250">201 – 250</option>
+                                    <option value="251-300">251 – 300</option>
+                                    <option value="301-350">301 – 350</option>
+                                    <option value="351-400">351 – 400</option>
+                                    <option value="401-450">401 – 450</option>
+                                    <option value="451-494">451 – 494</option>
+                                    <option value="1-494">All (1 – 494)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button type="button" onclick="nextVerifyBatch()" title="Jump to next 50 articles batch" style="background: #212631; border: 1px solid #2d3345; color: #58a6ff; height: 38px; padding: 0 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+                                    Next 50 ▶
+                                </button>
                             </div>
                         </div>
 
@@ -1617,6 +1640,27 @@
                 targetUrlGroup.style.display = 'block';
                 rangeGroup.style.display = 'none';
                 singleGroup.style.display = 'block';
+            }
+        }
+
+        function applyVerifyBatch(val) {
+            if (val.includes('-')) {
+                const [start, end] = val.split('-');
+                document.getElementById('verifyFromInput').value = start;
+                document.getElementById('verifyToInput').value = end;
+            }
+        }
+
+        function nextVerifyBatch() {
+            const currentTo = parseInt(document.getElementById('verifyToInput').value, 10) || 50;
+            const newFrom = currentTo + 1;
+            const newTo = Math.min(newFrom + 49, 494);
+            document.getElementById('verifyFromInput').value = newFrom;
+            document.getElementById('verifyToInput').value = newTo;
+            const sel = document.getElementById('verifyBatchSelect');
+            if (sel) {
+                const matchVal = `${newFrom}-${newTo}`;
+                sel.value = Array.from(sel.options).some(o => o.value === matchVal) ? matchVal : '1-494';
             }
         }
 
