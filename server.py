@@ -18,6 +18,14 @@ from tag_mapper import TAXONOMY_TREE, load_effective_mapping, save_custom_mappin
 from agents import coordinator
 from sources.detector import detect_source
 from profiles.manager import list_profiles, get_profile, save_profile
+from verifier_core import (
+    discover_target_articles,
+    parse_target_page,
+    compare_article,
+    calculate_similarity,
+    normalize_text,
+    match_source_post
+)
 
 PORT = 8080
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -34,12 +42,16 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == "/api/parse/stream":
             self.handle_api_parse_stream(params)
+        elif path == "/api/verify/stream":
+            self.handle_api_verify_stream(params)
         elif path == "/api/analyze/stream":
             self.handle_api_analyze_stream(params)
         elif path == "/api/parse":
             self.handle_api_parse(params)
         elif path == "/api/analyze":
             self.handle_api_analyze(params)
+        elif path == "/api/verify/target-urls":
+            self.handle_api_verify_target_urls(params)
         elif path == "/api/detect":
             self.handle_api_detect(params)
         elif path == "/api/profiles":
@@ -61,6 +73,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_save_tag_mapping()
         elif path == "/api/profiles":
             self.handle_save_profile()
+        elif path == "/api/verify/single":
+            self.handle_api_verify_single()
         else:
             self.send_response(404)
             self.end_headers()
@@ -556,6 +570,232 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         finally:
             coordinator.set_ready("content_agent")
             coordinator.set_ready("taxonomy_agent")
+
+    def handle_api_verify_target_urls(self, params):
+        """Fetch list of target articles available on Mach3Blocks archive pages."""
+        base_url = params.get("target_url", ["https://test13242.mach3blocks.io"])[0]
+        max_pages = int(params.get("max_pages", [5])[0])
+        try:
+            articles = discover_target_articles(base_url=base_url, max_pages=max_pages)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "count": len(articles), "articles": articles}, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_api_verify_single(self):
+        """Verify a single article given source_url/slug and target_url."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        post_data = self.rfile.read(content_length).decode("utf-8")
+        try:
+            data = json.loads(post_data)
+            source_slug = data.get("source_slug", "")
+            target_url = data.get("target_url", "")
+            lang = data.get("lang", "nl")
+
+            if not source_slug or not target_url:
+                raise ValueError("Both 'source_slug' and 'target_url' are required.")
+
+            # Fetch source WP post
+            wp_api_url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(source_slug)}&_embed=1"
+            req = urllib.request.Request(wp_api_url, headers={"User-Agent": "MigrationVerifier/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as r:
+                wp_posts = json.loads(r.read().decode("utf-8"))
+                if not wp_posts:
+                    raise ValueError(f"Source post '{source_slug}' not found.")
+                source_post = wp_posts[0]
+
+            # Fetch target HTML
+            req_t = urllib.request.Request(target_url, headers={"User-Agent": "MigrationVerifier/1.0"})
+            with urllib.request.urlopen(req_t, timeout=10) as r_t:
+                target_html = r_t.read().decode("utf-8", errors="ignore")
+            target_parsed = parse_target_page(target_html, target_url=target_url)
+
+            comparison = compare_article(source_post, target_parsed, lang=lang)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps(comparison, ensure_ascii=False).encode("utf-8"))
+        except Exception as e:
+            self.send_response(500)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_api_verify_stream(self, params):
+        """
+        Stream verification process events via Server-Sent Events (SSE).
+        Crawls target site articles, matches against source WP posts, and computes side-by-side diffs.
+        """
+        target_base = params.get("target_url", ["https://test13242.mach3blocks.io"])[0].rstrip("/")
+        max_target_pages = int(params.get("max_pages", [5])[0])
+        only_embeds = params.get("only_embeds", ["0"])[0] in ["1", "true", "yes"]
+        limit = int(params.get("limit", [50])[0])
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform, no-store")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        def send_event(data_dict):
+            payload = f"data: {json.dumps(data_dict, ensure_ascii=False)}\n\n".encode("utf-8")
+            self.wfile.write(payload)
+            self.wfile.flush()
+
+        coordinator.set_busy("content_agent", "Verifying content against target site")
+
+        try:
+            send_event({
+                "type": "status",
+                "phase": "crawling_target",
+                "message": f"Crawling published articles from {target_base}/nl/tips-advies/..."
+            })
+
+            target_articles = discover_target_articles(
+                base_url=target_base,
+                archive_path="/nl/tips-advies/",
+                max_pages=max_target_pages
+            )
+
+            send_event({
+                "type": "status",
+                "phase": "target_found",
+                "total_target": len(target_articles),
+                "message": f"Discovered {len(target_articles)} published article URLs on target site."
+            })
+
+            if not target_articles:
+                send_event({
+                    "type": "complete",
+                    "total": 0,
+                    "passed": 0,
+                    "warnings": 0,
+                    "failed": 0,
+                    "missing": 0,
+                    "items": [],
+                    "message": "No published articles found on target site."
+                })
+                return
+
+            # Map target articles by base slug
+            target_by_slug = {}
+            for t in target_articles:
+                s = t["slug"]
+                if s not in target_by_slug:
+                    target_by_slug[s] = t
+
+            # Fetch source WP articles to match
+            # If limit is specified, cap target items to verify
+            articles_to_verify = target_articles[:limit]
+
+            passed_count = 0
+            warn_count = 0
+            failed_count = 0
+            missing_embeds_count = 0
+
+            verified_results = []
+
+            for idx, target_item in enumerate(articles_to_verify):
+                t_url = target_item["url"]
+                t_slug = target_item["slug"]
+
+                send_event({
+                    "type": "progress",
+                    "current": idx + 1,
+                    "total": len(articles_to_verify),
+                    "slug": t_slug,
+                    "message": f"Checking [{idx + 1}/{len(articles_to_verify)}]: {t_slug}"
+                })
+
+                # Fetch Target HTML
+                target_parsed = None
+                try:
+                    req_t = urllib.request.Request(t_url, headers={"User-Agent": "MigrationVerifier/1.0"})
+                    with urllib.request.urlopen(req_t, timeout=10) as r_t:
+                        t_html = r_t.read().decode("utf-8", errors="ignore")
+                    target_parsed = parse_target_page(t_html, target_url=t_url)
+                except Exception as ex:
+                    send_event({
+                        "type": "item_error",
+                        "slug": t_slug,
+                        "url": t_url,
+                        "error": f"Failed to fetch target page: {str(ex)}"
+                    })
+                    failed_count += 1
+                    continue
+
+                # Intelligently find matching WP source post
+                source_post = match_source_post(
+                    target_slug=t_slug,
+                    target_title=target_parsed.get("title", ""),
+                    wp_api_base="https://anthuriuminfo.com"
+                )
+
+                if not source_post:
+                    # Target post has no source counterpart
+                    item_res = {
+                        "status": "MISSING_SOURCE",
+                        "slug": t_slug,
+                        "source_url": None,
+                        "target_url": t_url,
+                        "title": {"expected": "", "actual": target_parsed.get("title", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                        "intro": {"expected": "", "actual": target_parsed.get("intro_text", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                        "text_1": {"expected": "", "actual": target_parsed.get("text_1", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                        "text_2": {"expected": "", "actual": target_parsed.get("text_2", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                        "embeds": {
+                            "expected": "",
+                            "expected_type": None,
+                            "found_urls": target_parsed.get("boxes_with_data_url", []),
+                            "status": "EXTRA" if target_parsed.get("boxes_with_data_url") else "NONE"
+                        }
+                    }
+                    warn_count += 1
+                else:
+                    item_res = compare_article(source_post, target_parsed, lang="nl")
+                    if only_embeds and not item_res["embeds"].get("expected_type"):
+                        continue
+
+                    if item_res["status"] == "PASSED":
+                        passed_count += 1
+                    elif item_res["status"] == "WARNING":
+                        warn_count += 1
+                    else:
+                        failed_count += 1
+
+                    if item_res["embeds"]["status"] == "MISSING":
+                        missing_embeds_count += 1
+
+                verified_results.append(item_res)
+                send_event({
+                    "type": "item_verified",
+                    "item": item_res
+                })
+
+            send_event({
+                "type": "complete",
+                "total": len(verified_results),
+                "passed": passed_count,
+                "warnings": warn_count,
+                "failed": failed_count,
+                "missing_embeds": missing_embeds_count,
+                "message": f"Verification completed! {passed_count} passed, {warn_count} warnings, {failed_count} failed."
+            })
+        except Exception as e:
+            send_event({"type": "error", "message": str(e)})
+        finally:
+            coordinator.set_ready("content_agent")
 
 def run(port=PORT):
     socketserver.ThreadingTCPServer.allow_reuse_address = True

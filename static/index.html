@@ -405,6 +405,24 @@
             margin-bottom: 24px;
         }
 
+        /* Diff Tab Buttons */
+        .diff-tab-btn {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid transparent;
+            color: var(--text-secondary);
+            padding: 10px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .diff-tab-btn:hover { color: #fff; }
+        .diff-tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
         /* Responsive Mobile Styles */
         @media (max-width: 820px) {
             aside.sidebar { position: fixed; left: -220px; top: 0; bottom: 0; }
@@ -435,6 +453,10 @@
             <div class="nav-item" id="navTags" onclick="switchTab('tags')">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
                 Taxonomy & Filters
+            </div>
+            <div class="nav-item" id="navVerify" onclick="switchTab('verify')">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                Content Verification
             </div>
         </div>
     </aside>
@@ -474,6 +496,7 @@
             <div class="tabs-row">
                 <button class="tab-btn active" id="tabParseBtn" onclick="switchTab('parse')">Migration & Parsing</button>
                 <button class="tab-btn" id="tabTagsBtn" onclick="switchTab('tags')">Taxonomy & Filters</button>
+                <button class="tab-btn" id="tabVerifyBtn" onclick="switchTab('verify')">Content Verification</button>
             </div>
 
             <!-- TAB 1: PARSING VIEW -->
@@ -589,6 +612,128 @@
                 </div>
             </div>
 
+            <!-- TAB 3: CONTENT VERIFICATION & TESTING -->
+            <div id="verifyView" style="display: none;">
+                <div class="filter-panel" style="margin-bottom: 20px;">
+                    <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+                        <div style="flex: 2; min-width: 300px;">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Target Site Section (Archive URL)
+                            </label>
+                            <input type="text" id="verifyTargetUrl" value="https://test13242.mach3blocks.io" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Pages to Crawl
+                            </label>
+                            <input type="number" id="verifyMaxPages" value="3" min="1" max="20" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                        </div>
+                        <div style="flex: 1; min-width: 120px;">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Max Articles
+                            </label>
+                            <input type="number" id="verifyLimit" value="25" min="1" max="100" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px;">
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; padding-bottom: 8px;">
+                            <input type="checkbox" id="verifyOnlyEmbeds" style="cursor: pointer;">
+                            <label for="verifyOnlyEmbeds" style="font-size: 13px; color: #c9d1d9; cursor: pointer; user-select: none;">
+                                Focus on Instagram / TikTok
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btnStartVerify" class="btn-parse" onclick="startVerification()" style="height: 38px; display: flex; align-items: center; gap: 8px;">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                                Run Verification
+                            </button>
+                            <button id="btnCancelVerify" class="btn-cancel" onclick="cancelVerification()" style="display: none; height: 38px;">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- KPI Status Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px;">
+                    <div style="background: #181b24; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 18px;">
+                        <div style="font-size: 11px; text-transform: uppercase; color: #8b949e; font-weight: 600;">Total Tested</div>
+                        <div id="kpiTotal" style="font-size: 24px; font-weight: 700; color: #fff; margin-top: 4px;">0</div>
+                    </div>
+                    <div style="background: #181b24; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 18px;">
+                        <div style="font-size: 11px; text-transform: uppercase; color: #8b949e; font-weight: 600;">Passed (100% Match)</div>
+                        <div id="kpiPassed" style="font-size: 24px; font-weight: 700; color: #3fb950; margin-top: 4px;">0</div>
+                    </div>
+                    <div style="background: #181b24; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 18px;">
+                        <div style="font-size: 11px; text-transform: uppercase; color: #8b949e; font-weight: 600;">Text Warnings</div>
+                        <div id="kpiWarn" style="font-size: 24px; font-weight: 700; color: #d29922; margin-top: 4px;">0</div>
+                    </div>
+                    <div style="background: #181b24; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 18px;">
+                        <div style="font-size: 11px; text-transform: uppercase; color: #8b949e; font-weight: 600;">Failed / Discrepancies</div>
+                        <div id="kpiFailed" style="font-size: 24px; font-weight: 700; color: #f85149; margin-top: 4px;">0</div>
+                    </div>
+                    <div style="background: #181b24; border: 1px solid #282d3d; border-radius: 8px; padding: 14px 18px;">
+                        <div style="font-size: 11px; text-transform: uppercase; color: #8b949e; font-weight: 600;">Missing Embeds</div>
+                        <div id="kpiEmbeds" style="font-size: 24px; font-weight: 700; color: #ff7b72; margin-top: 4px;">0</div>
+                    </div>
+                </div>
+
+                <!-- Live Progress Message -->
+                <div id="verifyStatusBox" style="display: none; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 16px; margin-bottom: 16px; font-size: 13px; color: #58a6ff; align-items: center; gap: 10px;">
+                    <span class="spinner" style="width: 14px; height: 14px; border: 2px solid #58a6ff; border-top-color: transparent; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite;"></span>
+                    <span id="verifyStatusText">Initializing crawler...</span>
+                </div>
+
+                <!-- Verification Results Table -->
+                <div class="mapping-table-wrap">
+                    <div class="table-toolbar" style="display: flex; justify-content: space-between; align-items: center;">
+                        <input type="text" id="verifySearchInput" placeholder="Filter by slug or title..." oninput="filterVerifyTable()" style="min-width: 280px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 7px 12px; border-radius: 6px; font-size: 12px;">
+                        <span id="verifyTableCount" style="font-size: 12px; color: #8b949e;">0 items</span>
+                    </div>
+                    <div style="overflow-x: auto; max-height: 600px;">
+                        <table class="mapping-table" id="verifyTable">
+                            <thead>
+                                <tr>
+                                    <th>Status</th>
+                                    <th>Article (Source / Slug)</th>
+                                    <th>Intro Text</th>
+                                    <th>Body (Text-1)</th>
+                                    <th>Extra (Text-2)</th>
+                                    <th>Instagram / TikTok</th>
+                                    <th style="text-align: right;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="verifyTableBody">
+                                <tr>
+                                    <td colspan="7" style="text-align: center; padding: 36px; color: #8b949e;">
+                                        Click <strong>"Run Verification"</strong> above to compare content between Source and Target Mach3Blocks.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DIFF MODAL DRAWER -->
+            <div id="diffModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75); z-index: 9999; justify-content: center; align-items: center; padding: 24px;">
+                <div style="background: #181b24; border: 1px solid #30363d; border-radius: 10px; width: 92%; max-width: 1100px; height: 85vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 40px rgba(0,0,0,0.6);">
+                    <div style="padding: 16px 20px; border-bottom: 1px solid #282d3d; display: flex; justify-content: space-between; align-items: center; background: #13161e;">
+                        <div>
+                            <h3 id="diffModalTitle" style="margin: 0; font-size: 16px; color: #fff; font-weight: 600;">Article Inspection</h3>
+                            <div id="diffModalSubtitle" style="font-size: 12px; color: #8b949e; margin-top: 3px;"></div>
+                        </div>
+                        <button onclick="closeDiffModal()" style="background: transparent; border: none; color: #8b949e; font-size: 22px; cursor: pointer; padding: 4px 8px;">&times;</button>
+                    </div>
+                    <div style="display: flex; border-bottom: 1px solid #282d3d; background: #141822; padding: 0 16px;">
+                        <button class="diff-tab-btn active" id="tabDiffIntro" onclick="switchDiffSubTab('intro')">Intro Text</button>
+                        <button class="diff-tab-btn" id="tabDiffText1" onclick="switchDiffSubTab('text1')">Body (Text-1)</button>
+                        <button class="diff-tab-btn" id="tabDiffText2" onclick="switchDiffSubTab('text2')">Body (Text-2)</button>
+                        <button class="diff-tab-btn" id="tabDiffEmbeds" onclick="switchDiffSubTab('embeds')">Instagram & TikTok</button>
+                    </div>
+                    <div id="diffModalBody" style="flex: 1; overflow-y: auto; padding: 20px;">
+                        <!-- Injected dynamically -->
+                    </div>
+                </div>
+            </div>
             <!-- TAB 2: TAXONOMY & FILTERS MAPPING -->
             <div id="tagsView" style="display: none;">
                 <div class="mapping-table-wrap">
@@ -630,25 +775,36 @@
         function switchTab(tab) {
             const sideDashboard = document.getElementById('navDashboard');
             const sideTags = document.getElementById('navTags');
+            const sideVerify = document.getElementById('navVerify');
+            const tabParseBtn = document.getElementById('tabParseBtn');
+            const tabTagsBtn = document.getElementById('tabTagsBtn');
+            const tabVerifyBtn = document.getElementById('tabVerifyBtn');
+
+            const parseView = document.getElementById('parseView');
+            const tagsView = document.getElementById('tagsView');
+            const verifyView = document.getElementById('verifyView');
+
+            [parseView, tagsView, verifyView].forEach(v => { if (v) v.style.display = 'none'; });
+            [tabParseBtn, tabTagsBtn, tabVerifyBtn].forEach(b => { if (b) b.classList.remove('active'); });
+            [sideDashboard, sideTags, sideVerify].forEach(s => { if (s) s.classList.remove('active'); });
+
             if (tab === 'parse') {
-                document.getElementById('parseView').style.display = 'block';
-                document.getElementById('tagsView').style.display = 'none';
-                document.getElementById('tabParseBtn').classList.add('active');
-                document.getElementById('tabTagsBtn').classList.remove('active');
+                parseView.style.display = 'block';
+                tabParseBtn.classList.add('active');
                 if (sideDashboard) sideDashboard.classList.add('active');
-                if (sideTags) sideTags.classList.remove('active');
                 document.getElementById('viewTitle').textContent = 'Content Migration Studio';
-            } else {
-                document.getElementById('parseView').style.display = 'none';
-                document.getElementById('tagsView').style.display = 'block';
-                document.getElementById('tabParseBtn').classList.remove('active');
-                document.getElementById('tabTagsBtn').classList.add('active');
-                if (sideDashboard) sideDashboard.classList.remove('active');
+            } else if (tab === 'tags') {
+                tagsView.style.display = 'block';
+                tabTagsBtn.classList.add('active');
                 if (sideTags) sideTags.classList.add('active');
                 document.getElementById('viewTitle').textContent = 'Taxonomy & Filter Mapping';
                 loadTagMapping();
+            } else if (tab === 'verify') {
+                verifyView.style.display = 'block';
+                tabVerifyBtn.classList.add('active');
+                if (sideVerify) sideVerify.classList.add('active');
+                document.getElementById('viewTitle').textContent = 'Content Verification & Testing';
             }
-            // Auto close mobile drawer on click
             document.getElementById('sidebar').classList.remove('open');
         }
 
@@ -1403,6 +1559,326 @@
                     dlAnchor.remove();
                 }, i * 350);
             }
+        }
+        // ==========================================
+        // CONTENT VERIFICATION & TESTING LOGIC
+        // ==========================================
+        let verifyEventSource = null;
+        let verifiedItemsList = [];
+        let currentInspectedItem = null;
+
+        function startVerification() {
+            const targetUrl = document.getElementById('verifyTargetUrl').value.trim();
+            const maxPages = document.getElementById('verifyMaxPages').value;
+            const limit = document.getElementById('verifyLimit').value;
+            const onlyEmbeds = document.getElementById('verifyOnlyEmbeds').checked;
+
+            const btnStart = document.getElementById('btnStartVerify');
+            const btnCancel = document.getElementById('btnCancelVerify');
+            const statusBox = document.getElementById('verifyStatusBox');
+            const statusText = document.getElementById('verifyStatusText');
+            const tableBody = document.getElementById('verifyTableBody');
+
+            btnStart.style.display = 'none';
+            btnCancel.style.display = 'inline-block';
+            statusBox.style.display = 'flex';
+            statusText.textContent = 'Connecting and crawling target site archive...';
+
+            // Reset KPIs
+            document.getElementById('kpiTotal').textContent = '0';
+            document.getElementById('kpiPassed').textContent = '0';
+            document.getElementById('kpiWarn').textContent = '0';
+            document.getElementById('kpiFailed').textContent = '0';
+            document.getElementById('kpiEmbeds').textContent = '0';
+
+            verifiedItemsList = [];
+            tableBody.innerHTML = '';
+
+            const params = new URLSearchParams({
+                target_url: targetUrl,
+                max_pages: maxPages,
+                limit: limit,
+                only_embeds: onlyEmbeds ? '1' : '0'
+            });
+
+            if (verifyEventSource) {
+                verifyEventSource.close();
+            }
+
+            verifyEventSource = new EventSource(`/api/verify/stream?${params.toString()}`);
+
+            verifyEventSource.onmessage = function(e) {
+                try {
+                    const data = JSON.parse(e.data);
+                    if (data.type === 'status' || data.type === 'progress') {
+                        statusText.textContent = data.message || `Processing item ${data.current} of ${data.total}`;
+                    } else if (data.type === 'item_verified') {
+                        verifiedItemsList.push(data.item);
+                        appendVerifyTableRow(data.item, verifiedItemsList.length - 1);
+                        updateVerifyKPIs();
+                    } else if (data.type === 'complete') {
+                        statusText.textContent = data.message;
+                        document.querySelector('#verifyStatusBox .spinner').style.display = 'none';
+                        btnStart.style.display = 'inline-block';
+                        btnCancel.style.display = 'none';
+                        verifyEventSource.close();
+                        verifyEventSource = null;
+                    } else if (data.type === 'error') {
+                        statusText.textContent = `Error: ${data.message}`;
+                        statusText.style.color = '#f85149';
+                        btnStart.style.display = 'inline-block';
+                        btnCancel.style.display = 'none';
+                        verifyEventSource.close();
+                        verifyEventSource = null;
+                    }
+                } catch (err) {
+                    console.error("SSE parse error", err);
+                }
+            };
+
+            verifyEventSource.onerror = function() {
+                statusText.textContent = 'Connection lost or stream finished.';
+                btnStart.style.display = 'inline-block';
+                btnCancel.style.display = 'none';
+                if (verifyEventSource) {
+                    verifyEventSource.close();
+                    verifyEventSource = null;
+                }
+            };
+        }
+
+        function cancelVerification() {
+            if (verifyEventSource) {
+                verifyEventSource.close();
+                verifyEventSource = null;
+            }
+            document.getElementById('btnStartVerify').style.display = 'inline-block';
+            document.getElementById('btnCancelVerify').style.display = 'none';
+            document.getElementById('verifyStatusText').textContent = 'Verification stopped by user.';
+            document.querySelector('#verifyStatusBox .spinner').style.display = 'none';
+        }
+
+        function updateVerifyKPIs() {
+            let total = verifiedItemsList.length;
+            let passed = 0;
+            let warn = 0;
+            let failed = 0;
+            let missingEmbeds = 0;
+
+            verifiedItemsList.forEach(item => {
+                if (item.status === 'PASSED') passed++;
+                else if (item.status === 'WARNING') warn++;
+                else failed++;
+
+                if (item.embeds && item.embeds.status === 'MISSING') {
+                    missingEmbeds++;
+                }
+            });
+
+            document.getElementById('kpiTotal').textContent = total;
+            document.getElementById('kpiPassed').textContent = passed;
+            document.getElementById('kpiWarn').textContent = warn;
+            document.getElementById('kpiFailed').textContent = failed;
+            document.getElementById('kpiEmbeds').textContent = missingEmbeds;
+            document.getElementById('verifyTableCount').textContent = `${total} items`;
+        }
+
+        function getSimBadge(field) {
+            if (!field) return '<span style="color:#8b949e;">-</span>';
+            const sim = field.similarity !== undefined ? field.similarity : 0;
+            let color = '#3fb950';
+            let bg = 'rgba(63,185,80,0.15)';
+            if (sim < 80) { color = '#f85149'; bg = 'rgba(248,81,73,0.15)'; }
+            else if (sim < 95) { color = '#d29922'; bg = 'rgba(210,153,34,0.15)'; }
+            return `<span style="display:inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: ${color}; background: ${bg};">${sim}%</span>`;
+        }
+
+        function getEmbedBadge(embeds) {
+            if (!embeds || embeds.status === 'NONE') {
+                return '<span style="color:#8b949e; font-size: 11px;">None</span>';
+            }
+            if (embeds.status === 'MATCH') {
+                const type = (embeds.expected_type || 'Embed').toUpperCase();
+                return `<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #3fb950; background: rgba(63,185,80,0.15);">✓ ${type}</span>`;
+            }
+            if (embeds.status === 'MISSING') {
+                const type = (embeds.expected_type || 'Embed').toUpperCase();
+                return `<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #f85149; background: rgba(248,81,73,0.15);">MISSING ${type}</span>`;
+            }
+            if (embeds.status === 'EXTRA') {
+                return '<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210,153,34,0.15);">Extra Embed</span>';
+            }
+            return `<span style="color:#8b949e;">${embeds.status}</span>`;
+        }
+
+        function appendVerifyTableRow(item, index) {
+            const tbody = document.getElementById('verifyTableBody');
+            const tr = document.createElement('tr');
+            tr.id = `vrow_${index}`;
+
+            let statusBadge = '<span style="color:#3fb950; font-weight:700;">PASSED</span>';
+            if (item.status === 'WARNING') {
+                statusBadge = '<span style="color:#d29922; font-weight:700;">WARNING</span>';
+            } else if (item.status === 'FAILED') {
+                statusBadge = '<span style="color:#f85149; font-weight:700;">FAILED</span>';
+            } else if (item.status === 'MISSING_SOURCE') {
+                statusBadge = '<span style="color:#8b949e; font-weight:700;">NO SOURCE</span>';
+            }
+
+            const title = item.title ? (item.title.expected || item.title.actual || item.slug) : item.slug;
+            const targetLink = item.target_url ? `<a href="${item.target_url}" target="_blank" style="color: #58a6ff; font-size: 11px; text-decoration: none; margin-left: 6px;">[Target ↗]</a>` : '';
+            const sourceLink = item.source_url ? `<a href="${item.source_url}" target="_blank" style="color: #8b949e; font-size: 11px; text-decoration: none;">[Source ↗]</a>` : '';
+
+            tr.innerHTML = `
+                <td>${statusBadge}</td>
+                <td>
+                    <div style="font-weight: 600; color: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">
+                        ${title}
+                    </div>
+                    <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
+                        <code>${item.slug}</code> ${sourceLink} ${targetLink}
+                    </div>
+                </td>
+                <td>${getSimBadge(item.intro)}</td>
+                <td>${getSimBadge(item.text_1)}</td>
+                <td>${getSimBadge(item.text_2)}</td>
+                <td>${getEmbedBadge(item.embeds)}</td>
+                <td style="text-align: right;">
+                    <button class="btn-inspect" onclick="openDiffModal(${index})" style="background: #212631; border: 1px solid #30363d; color: #58a6ff; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;">
+                        Diff Inspect
+                    </button>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        }
+
+        function filterVerifyTable() {
+            const q = document.getElementById('verifySearchInput').value.toLowerCase();
+            verifiedItemsList.forEach((item, idx) => {
+                const tr = document.getElementById(`vrow_${idx}`);
+                if (!tr) return;
+                const matchSlug = item.slug && item.slug.toLowerCase().includes(q);
+                const matchTitle = item.title && ((item.title.expected && item.title.expected.toLowerCase().includes(q)) || (item.title.actual && item.title.actual.toLowerCase().includes(q)));
+                tr.style.display = (matchSlug || matchTitle) ? '' : 'none';
+            });
+        }
+
+        function openDiffModal(index) {
+            currentInspectedItem = verifiedItemsList[index];
+            if (!currentInspectedItem) return;
+
+            document.getElementById('diffModal').style.display = 'flex';
+            document.getElementById('diffModalTitle').textContent = `Diff Inspection: ${currentInspectedItem.slug}`;
+            document.getElementById('diffModalSubtitle').innerHTML = `
+                Source: <a href="${currentInspectedItem.source_url}" target="_blank" style="color: #58a6ff;">${currentInspectedItem.source_url || 'N/A'}</a> &nbsp;|&nbsp; 
+                Target: <a href="${currentInspectedItem.target_url}" target="_blank" style="color: #58a6ff;">${currentInspectedItem.target_url || 'N/A'}</a>
+            `;
+
+            switchDiffSubTab('intro');
+        }
+
+        function closeDiffModal() {
+            document.getElementById('diffModal').style.display = 'none';
+            currentInspectedItem = null;
+        }
+
+        function switchDiffSubTab(tab) {
+            ['intro', 'text1', 'text2', 'embeds'].forEach(t => {
+                const b = document.getElementById('tabDiff' + t.charAt(0).toUpperCase() + t.slice(1));
+                if (b) b.classList.remove('active');
+            });
+            const activeBtn = document.getElementById('tabDiff' + tab.charAt(0).toUpperCase() + tab.slice(1));
+            if (activeBtn) activeBtn.classList.add('active');
+
+            const container = document.getElementById('diffModalBody');
+            if (!currentInspectedItem) return;
+
+            if (tab === 'intro') {
+                renderSideBySide(container, 'item-intro-text', currentInspectedItem.intro);
+            } else if (tab === 'text1') {
+                renderSideBySide(container, 'text-1 (Primary Body)', currentInspectedItem.text_1);
+            } else if (tab === 'text2') {
+                renderSideBySide(container, 'text-2 (Secondary Body)', currentInspectedItem.text_2);
+            } else if (tab === 'embeds') {
+                renderEmbedsDiff(container, currentInspectedItem.embeds);
+            }
+        }
+
+        function renderSideBySide(container, fieldName, fieldData) {
+            if (!fieldData) {
+                container.innerHTML = '<p style="color: #8b949e;">No data available.</p>';
+                return;
+            }
+            const sim = fieldData.similarity !== undefined ? fieldData.similarity : 0;
+            const diffHtml = fieldData.diff && fieldData.diff.length ? `
+                <div style="margin-top: 16px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; max-height: 200px; overflow-y: auto;">
+                    <div style="color: #8b949e; margin-bottom: 6px; font-weight: 600;">Text Diff Lines:</div>
+                    ${fieldData.diff.map(line => {
+                        let color = '#c9d1d9';
+                        if (line.startsWith('+')) color = '#3fb950';
+                        else if (line.startsWith('-')) color = '#f85149';
+                        else if (line.startsWith('@')) color = '#58a6ff';
+                        return `<div style="color: ${color}; white-space: pre-wrap;">${line}</div>`;
+                    }).join('')}
+                </div>
+            ` : '<div style="margin-top: 12px; color: #3fb950; font-size: 13px;">✓ Texts are identical (100% Match)</div>';
+
+            container.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <h4 style="margin: 0; color: #fff; font-size: 14px;">Field: ${fieldName}</h4>
+                    <span style="font-size: 13px; font-weight: 600;">Similarity Score: ${getSimBadge(fieldData)}</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="background: #11141c; border: 1px solid #282d3d; border-radius: 6px; padding: 14px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #8b949e; margin-bottom: 8px;">SOURCE / EXPORT VALUE</div>
+                        <div style="font-size: 13px; color: #c9d1d9; max-height: 300px; overflow-y: auto; line-height: 1.5;">
+                            ${fieldData.expected ? fieldData.expected : '<em style="color:#6e7681;">[Empty]</em>'}
+                        </div>
+                    </div>
+                    <div style="background: #11141c; border: 1px solid #282d3d; border-radius: 6px; padding: 14px;">
+                        <div style="font-size: 12px; font-weight: 600; color: #8b949e; margin-bottom: 8px;">PUBLISHED ON TARGET PAGE</div>
+                        <div style="font-size: 13px; color: #c9d1d9; max-height: 300px; overflow-y: auto; line-height: 1.5;">
+                            ${fieldData.actual ? fieldData.actual : '<em style="color:#6e7681;">[Empty]</em>'}
+                        </div>
+                    </div>
+                </div>
+                ${diffHtml}
+            `;
+        }
+
+        function renderEmbedsDiff(container, embeds) {
+            if (!embeds) {
+                container.innerHTML = '<p style="color: #8b949e;">No embed data.</p>';
+                return;
+            }
+
+            container.innerHTML = `
+                <div style="margin-bottom: 16px;">
+                    <h4 style="margin: 0 0 4px 0; color: #fff; font-size: 14px;">Social Media Embed Verification</h4>
+                    <span style="font-size: 12px; color: #8b949e;">Checks for Instagram Reels/Posts and TikTok embeds</span>
+                </div>
+                <div style="background: #11141c; border: 1px solid #282d3d; border-radius: 6px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #8b949e; margin-bottom: 6px;">EXPECTED IN SOURCE POST</div>
+                    <div style="font-size: 13px; color: #fff;">
+                        ${embeds.expected ? `<a href="${embeds.expected}" target="_blank" style="color: #58a6ff;">${embeds.expected}</a> (${embeds.expected_type})` : '<em style="color:#8b949e;">No social media embeds in original post</em>'}
+                    </div>
+                </div>
+                <div style="background: #11141c; border: 1px solid #282d3d; border-radius: 6px; padding: 16px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #8b949e; margin-bottom: 6px;">DETECTED ON TARGET PAGE (.box[data-url] / iframe)</div>
+                    <div style="font-size: 13px; color: #fff;">
+                        ${embeds.found_urls && embeds.found_urls.length ? embeds.found_urls.map(u => `<div style="margin-bottom: 4px;"><a href="${u}" target="_blank" style="color: #3fb950;">${u}</a></div>`).join('') : '<em style="color:#8b949e;">No embed URLs found on target page</em>'}
+                    </div>
+                </div>
+                <div style="margin-top: 16px; padding: 12px; border-radius: 6px; background: ${embeds.status === 'MATCH' ? 'rgba(63,185,80,0.1)' : (embeds.status === 'MISSING' ? 'rgba(248,81,73,0.1)' : '#181b24')}; border: 1px solid ${embeds.status === 'MATCH' ? '#2ea043' : (embeds.status === 'MISSING' ? '#da3633' : '#30363d')};">
+                    <strong style="color: ${embeds.status === 'MATCH' ? '#3fb950' : (embeds.status === 'MISSING' ? '#f85149' : '#8b949e')};">
+                        Status: ${embeds.status}
+                    </strong>
+                    <div style="font-size: 12px; color: #c9d1d9; margin-top: 4px;">
+                        ${embeds.status === 'MATCH' ? 'The social embed was successfully preserved and rendered on the target site.' : (embeds.status === 'MISSING' ? 'CRITICAL: The source article had an embed, but it was not found or properly mapped to the target page!' : 'Article without embeds.')}
+                    </div>
+                </div>
+            `;
         }
     </script>
 </body>
