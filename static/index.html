@@ -773,10 +773,13 @@
                                         const detectData = await detectPromise;
                                         analysisBox.style.display = 'block';
                                         renderAnalysis(analysisItems, detectData);
+                                        analyzeBtn.disabled = false;
                                         setTimeout(() => {
                                             if (progressBox) progressBox.style.display = 'none';
                                         }, 1500);
-                                    } catch (_) {}
+                                    } catch (_) {
+                                        analyzeBtn.disabled = false;
+                                    }
                                     try { reader.cancel(); } catch (_) {}
                                     break;
                                 } else if (evt.type === 'error') {
@@ -971,6 +974,8 @@
                                     currentData = finalData;
                                     renderResults(finalData);
                                     exportBtn.disabled = false;
+                                    parseBtn.disabled = false;
+                                    btnText.textContent = "▶ Run Parser";
                                     setTimeout(() => {
                                         if (progressBox) progressBox.style.display = 'none';
                                     }, 1500);
