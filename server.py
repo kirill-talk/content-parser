@@ -718,7 +718,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 send_event({
                     "type": "status",
                     "phase": "crawling_target",
-                    "message": f"Crawling published articles from {target_base}/nl/tips-advies/..."
+                    "message": f"Crawling published articles from {target_base}..."
                 })
 
                 send_ping()

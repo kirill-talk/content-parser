@@ -22,60 +22,71 @@ def match_source_post(
 ) -> Optional[Dict[str, Any]]:
     """
     Intelligently find the matching WordPress source post for a given target slug and title:
-    1. Exact slug match
+    1. Exact slug match (if slug is non-empty)
     2. Slug without '-copy'
-    3. WP search by slug keywords
-    4. WP search by title keywords with similarity ranking >= 0.65
+    3. Title search in WP API with ranking by similarity score >= 0.70
+    4. Slug keywords search in WP API
     """
     clean_base = wp_api_base.rstrip('/')
 
-    candidates_slugs = [target_slug]
-    if "-copy" in target_slug:
-        candidates_slugs.append(target_slug.replace("-copy", ""))
+    # Strategy 1 & 2: Match by slug (only if slug is provided and not empty)
+    clean_slug = (target_slug or "").strip()
+    if clean_slug:
+        candidates_slugs = [clean_slug]
+        if "-copy" in clean_slug:
+            candidates_slugs.append(clean_slug.replace("-copy", ""))
 
-    for s in candidates_slugs:
-        try:
-            url = f"{clean_base}/wp-json/wp/v2/posts?slug={urllib.parse.quote(s)}&_embed=1"
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=8) as r:
-                res = json.loads(r.read().decode("utf-8"))
-                if res and isinstance(res, list):
-                    return res[0]
-        except Exception:
-            pass
+        for s in candidates_slugs:
+            if not s:
+                continue
+            try:
+                url = f"{clean_base}/wp-json/wp/v2/posts?slug={urllib.parse.quote(s)}&_embed=1"
+                req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    res = json.loads(r.read().decode("utf-8"))
+                    if res and isinstance(res, list):
+                        return res[0]
+            except Exception:
+                pass
 
-    slug_words = [w for w in target_slug.replace("-copy", "").split("-") if len(w) > 3]
-    if slug_words:
-        query_terms = "+".join(slug_words[:3])
-        try:
-            url = f"{clean_base}/wp-json/wp/v2/posts?search={query_terms}&_embed=1"
-            req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=8) as r:
-                res = json.loads(r.read().decode("utf-8"))
-                if res:
-                    best_match = None
-                    best_score = 0.0
-                    for post in res:
-                        p_title = html.unescape(post.get("title", {}).get("rendered", ""))
-                        score = calculate_similarity(target_title, p_title)
-                        if score > best_score:
-                            best_score = score
-                            best_match = post
-                    if best_match and best_score >= 0.65:
-                        return best_match
-        except Exception:
-            pass
-
-    if target_title:
-        title_words = [w for w in re.findall(r'\b[a-zA-Z]{4,}\b', target_title)][:4]
+    # Strategy 3: Primary search by Title in WP API
+    if target_title and target_title.strip():
+        clean_title = target_title.strip()
+        # Find meaningful title words
+        title_words = [w for w in re.findall(r'\b[a-zA-Z0-9]{3,}\b', clean_title)]
         if title_words:
-            query_terms = "+".join(title_words)
+            # Try specific keywords first
+            query_terms = "+".join(title_words[:4])
             try:
                 url = f"{clean_base}/wp-json/wp/v2/posts?search={query_terms}&_embed=1"
                 req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
                 with urllib.request.urlopen(req, timeout=8) as r:
                     res = json.loads(r.read().decode("utf-8"))
-                    if res:
+                    if res and isinstance(res, list):
+                        best_match = None
+                        best_score = 0.0
+                        for post in res:
+                            p_title = html.unescape(post.get("title", {}).get("rendered", ""))
+                            score = calculate_similarity(clean_title, p_title)
+                            if score > best_score:
+                                best_score = score
+                                best_match = post
+                        if best_match and best_score >= 0.65:
+                            return best_match
+            except Exception:
+                pass
+
+    # Strategy 4: Fallback to slug keywords if title search didn't match
+    if clean_slug:
+        slug_words = [w for w in clean_slug.replace("-copy", "").split("-") if len(w) > 3]
+        if slug_words:
+            query_terms = "+".join(slug_words[:3])
+            try:
+                url = f"{clean_base}/wp-json/wp/v2/posts?search={query_terms}&_embed=1"
+                req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    res = json.loads(r.read().decode("utf-8"))
+                    if res and isinstance(res, list):
                         best_match = None
                         best_score = 0.0
                         for post in res:
@@ -174,17 +185,46 @@ def discover_target_articles(
 ) -> List[Dict[str, str]]:
     """
     Crawl archive pagination on target site and collect published article URLs and slugs.
-    Returns list of dicts: [{'url': ..., 'slug': ..., 'nano_id': ...}]
+    Supports:
+    1. Standard domain archive: e.g. https://test13242.mach3blocks.io/nl/tips-advies/
+    2. Mach3Blocks Preview overview: e.g. https://app.mach3blocks.io/preview/?wid=113568&pid=...&pkey=...
+    3. Custom overview URLs with query params.
     """
-    clean_base = base_url.rstrip('/')
     found_articles = []
     seen_urls = set()
 
+    # Parse provided base URL
+    parsed_input = urllib.parse.urlparse(base_url.strip())
+    domain_base = f"{parsed_input.scheme}://{parsed_input.netloc}"
+
+    # Check if input URL is already a full overview URL with query params (e.g. preview)
+    is_preview = "preview" in parsed_input.path or "app.mach3blocks.io" in parsed_input.netloc or bool(parsed_input.query)
+
     for page in range(1, max_pages + 1):
-        if page == 1:
-            page_url = f"{clean_base}{archive_path}"
+        if is_preview:
+            # Construct page URL by updating/adding &page=N
+            qs = urllib.parse.parse_qs(parsed_input.query)
+            if page > 1:
+                qs['page'] = [str(page)]
+            else:
+                qs.pop('page', None)
+            new_query = urllib.parse.urlencode(qs, doseq=True)
+            page_url = urllib.parse.urlunparse((
+                parsed_input.scheme,
+                parsed_input.netloc,
+                parsed_input.path,
+                parsed_input.params,
+                new_query,
+                parsed_input.fragment
+            ))
         else:
-            page_url = f"{clean_base}{archive_path}?page={page}"
+            clean_base = domain_base.rstrip('/')
+            clean_path = archive_path if archive_path.startswith('/') else f"/{archive_path}"
+            if page == 1:
+                page_url = f"{clean_base}{clean_path}"
+            else:
+                delim = "&" if "?" in clean_path else "?"
+                page_url = f"{clean_base}{clean_path}{delim}page={page}"
 
         try:
             req = urllib.request.Request(page_url, headers={"User-Agent": USER_AGENT})
@@ -193,28 +233,42 @@ def discover_target_articles(
         except Exception:
             break
 
-        # Match links to blog posts: /nl/blog/{slug-with-nano-id}/
-        links = re.findall(r'href=[\"\'](/nl/blog/([^/\"\'~]+)(?:~([^/\"\'~]+))?/?[\"\'])', content)
-        if not links:
-            break
-
         new_on_page = 0
-        for rel_href, slug_part, nano_id in links:
-            # Normalize full URL
-            full_path = rel_href.split('"')[0].split("'")[0]
-            if not full_path.endswith('/'):
-                full_path += '/'
-            full_target_url = f"{clean_base}{full_path}"
 
-            if full_target_url not in seen_urls:
-                seen_urls.add(full_target_url)
-                new_on_page += 1
-                found_articles.append({
-                    "url": full_target_url,
-                    "slug": slug_part,
-                    "nano_id": nano_id or "",
-                    "path": full_path
-                })
+        # Pattern 1: Mach3Blocks preview links: /preview/?wid=...&(ciid|cid)=...&cikey=...
+        preview_links = re.findall(r'href=[\"\'](/preview/\?[^\"\']*(?:ciid|cid)=[^\"\']+)[\"\']', content)
+        if preview_links:
+            for p_href in preview_links:
+                clean_href = html.unescape(p_href).replace('&amp;', '&')
+                full_url = f"{domain_base}{clean_href}"
+                if full_url not in seen_urls:
+                    seen_urls.add(full_url)
+                    new_on_page += 1
+                    found_articles.append({
+                        "url": full_url,
+                        "slug": "",
+                        "nano_id": "",
+                        "path": clean_href
+                    })
+
+        # Pattern 2: Standard blog links: /nl/blog/{slug-with-nano-id}/
+        standard_links = re.findall(r'href=[\"\'](/nl/blog/([^/\"\'~]+)(?:~([^/\"\'~]+))?/?[\"\'])', content)
+        if standard_links:
+            for rel_href, slug_part, nano_id in standard_links:
+                full_path = rel_href.split('"')[0].split("'")[0]
+                if not full_path.endswith('/'):
+                    full_path += '/'
+                full_target_url = f"{domain_base}{full_path}"
+
+                if full_target_url not in seen_urls:
+                    seen_urls.add(full_target_url)
+                    new_on_page += 1
+                    found_articles.append({
+                        "url": full_target_url,
+                        "slug": slug_part,
+                        "nano_id": nano_id or "",
+                        "path": full_path
+                    })
 
         if new_on_page == 0:
             break
