@@ -241,6 +241,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             })
 
             from multi_lang import find_language_post
+            from concurrent.futures import ThreadPoolExecutor
 
             analysis_result = []
             for idx, p in enumerate(raw_posts, 1):
@@ -263,14 +264,22 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     "languages": {"nl": True}
                 }
 
-                for lang in ["en", "de", "fr"]:
-                    if lang in selected_langs:
-                        match = find_language_post(p, lang)
-                        item_status["languages"][lang] = (match is not None)
-                        if match:
-                            item_status[f"{lang}_title"] = match.get("title", {}).get("rendered", "")
-                    else:
-                        item_status["languages"][lang] = False
+                check_langs = [l for l in ["en", "de", "fr"] if l in selected_langs]
+                if check_langs:
+                    with ThreadPoolExecutor(max_workers=len(check_langs)) as pool:
+                        futures = {l: pool.submit(find_language_post, p, l) for l in check_langs}
+                        for l, f in futures.items():
+                            try:
+                                match = f.result()
+                            except Exception:
+                                match = None
+                            item_status["languages"][l] = (match is not None)
+                            if match:
+                                item_status[f"{l}_title"] = match.get("title", {}).get("rendered", "")
+
+                for l in ["en", "de", "fr"]:
+                    if l not in item_status["languages"]:
+                        item_status["languages"][l] = False
 
                 analysis_result.append(item_status)
 

@@ -14,6 +14,7 @@ from datetime import datetime
 from splitter import ContentSplitter
 from tag_mapper import format_tags_html, map_tags_to_ids, TAXONOMY_TREE
 from multi_lang import find_language_post
+from concurrent.futures import ThreadPoolExecutor
 
 def generate_nano_id(length=8) -> str:
     """Generate an alphanumeric nano-id matching Mach3Blocks style (e.g. oX6WgXe9)."""
@@ -131,11 +132,20 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         }
     }
 
-    # Process other selected languages (en, de, fr)
-    for lang in ["en", "de", "fr"]:
-        if lang not in selected_langs:
-            continue
-        trans_post = find_language_post(post, lang)
+    # Process other selected languages (en, de, fr) in parallel to maximize speed
+    active_other_langs = [l for l in ["en", "de", "fr"] if l in selected_langs]
+    matched_translations = {}
+    if active_other_langs:
+        with ThreadPoolExecutor(max_workers=len(active_other_langs)) as pool:
+            futures = {l: pool.submit(find_language_post, post, l) for l in active_other_langs}
+            for l, f in futures.items():
+                try:
+                    matched_translations[l] = f.result()
+                except Exception:
+                    matched_translations[l] = None
+
+    for lang in active_other_langs:
+        trans_post = matched_translations.get(lang)
         if trans_post:
             t_title = html.unescape(trans_post.get("title", {}).get("rendered", ""))
             t_slug = trans_post.get("slug", slug)

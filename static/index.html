@@ -307,11 +307,38 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
+            gap: 12px;
         }
         .progress-title-wrap {
             display: flex;
             align-items: center;
             gap: 10px;
+            flex: 1;
+            min-width: 0;
+        }
+        .progress-right-wrap {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-cancel-task {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-size: 11.5px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+        }
+        .btn-cancel-task:hover {
+            background: #ef4444;
+            color: #fff;
+            border-color: #ef4444;
         }
         .progress-spinner {
             width: 18px;
@@ -529,7 +556,13 @@
                             <div class="progress-spinner"></div>
                             <span class="progress-title" id="progressStatusText">Preparing migration...</span>
                         </div>
-                        <span class="progress-counter" id="progressCounter">0%</span>
+                        <div class="progress-right-wrap">
+                            <span class="progress-counter" id="progressCounter">0%</span>
+                            <button type="button" class="btn-cancel-task" id="cancelTaskBtn" onclick="cancelCurrentTask()" title="Cancel operation">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                     <div class="progress-bar-track">
                         <div class="progress-bar-fill" id="progressBarFill"></div>
@@ -626,6 +659,28 @@
             return langs.join(',');
         }
 
+        let activeAbortController = null;
+        let activeStreamReader = null;
+
+        function cancelCurrentTask() {
+            if (activeAbortController) {
+                activeAbortController.abort();
+                activeAbortController = null;
+            }
+            if (activeStreamReader) {
+                try { activeStreamReader.cancel(); } catch (_) {}
+                activeStreamReader = null;
+            }
+            const progressStatus = document.getElementById('progressStatusText');
+            const progressCurrentTitle = document.getElementById('progressCurrentTitle');
+            if (progressStatus) progressStatus.textContent = 'Operation cancelled by user';
+            if (progressCurrentTitle) progressCurrentTitle.textContent = 'Cancelled';
+            setTimeout(() => {
+                const progressBox = document.getElementById('progressContainer');
+                if (progressBox) progressBox.style.display = 'none';
+            }, 800);
+        }
+
         async function runAnalysis() {
             const mode = document.getElementById('modeSelect').value;
             const count = document.getElementById('countSelect').value;
@@ -659,15 +714,19 @@
             }
 
             try {
+                activeAbortController = new AbortController();
+                const signal = activeAbortController.signal;
+
                 // Fetch detector info in parallel
-                const detectPromise = fetch(`/api/detect?url=${encodeURIComponent('https://anthuriuminfo.com')}`)
+                const detectPromise = fetch(`/api/detect?url=${encodeURIComponent('https://anthuriuminfo.com')}`, { signal })
                     .then(r => r.json())
                     .catch(() => null);
 
-                const resp = await fetch(`/api/analyze/stream?${queryParams}`);
+                const resp = await fetch(`/api/analyze/stream?${queryParams}`, { signal });
                 if (!resp.ok) throw new Error(`Server returned HTTP ${resp.status}`);
 
                 const reader = resp.body.getReader();
+                activeStreamReader = reader;
                 const decoder = new TextDecoder('utf-8');
                 let buffer = '';
                 let analysisItems = null;
@@ -731,10 +790,16 @@
                 }
 
             } catch (e) {
+                if (e.name === 'AbortError') {
+                    console.log('Analysis aborted by user.');
+                    return;
+                }
                 progressBox.style.display = 'none';
                 analysisBox.style.display = 'block';
                 analysisBox.innerHTML = `<div style="color:#ef4444; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">Analysis failed: ${e.message}</div>`;
             } finally {
+                activeAbortController = null;
+                activeStreamReader = null;
                 analyzeBtn.disabled = false;
             }
         }
@@ -835,11 +900,15 @@
             }
 
             try {
+                activeAbortController = new AbortController();
+                const signal = activeAbortController.signal;
+
                 // Read streaming events via fetch + ReadableStream
-                const resp = await fetch(`/api/parse/stream?${queryParams}`);
+                const resp = await fetch(`/api/parse/stream?${queryParams}`, { signal });
                 if (!resp.ok) throw new Error(`Server returned HTTP ${resp.status}`);
 
                 const reader = resp.body.getReader();
+                activeStreamReader = reader;
                 const decoder = new TextDecoder('utf-8');
                 let buffer = '';
                 let finalData = null;
@@ -901,10 +970,17 @@
                 }
 
             } catch (err) {
+                if (err.name === 'AbortError') {
+                    console.log('Parsing aborted by user.');
+                    container.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);">Operation cancelled by user.</div>';
+                    return;
+                }
                 console.error(err);
                 progressBox.style.display = 'none';
                 container.innerHTML = `<div style="background: #ef4444; color: #fff; padding: 16px; border-radius: 8px;">Error: ${err.message}</div>`;
             } finally {
+                activeAbortController = null;
+                activeStreamReader = null;
                 parseBtn.disabled = false;
                 btnText.textContent = "▶ Run Parser";
             }
