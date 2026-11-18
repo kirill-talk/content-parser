@@ -616,86 +616,50 @@
             <div id="verifyView" style="display: none;">
                 <div class="filter-panel" style="margin-bottom: 20px;">
                     <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+                        <!-- 1. TARGET URL FIRST -->
+                        <div style="flex: 2; min-width: 320px;" id="verifyTargetUrlGroup">
+                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
+                                Target Overview URL
+                            </label>
+                            <input type="text" id="verifyTargetUrl" value="https://app.mach3blocks.io/preview/?wid=113568&pid=3238510&pkey=96m54s2k55ai0vxyvo1ygl296kw41lzf&language=nl" placeholder="https://app.mach3blocks.io/preview/?... or https://test13242.mach3blocks.io" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                        </div>
+
+                        <!-- 2. VERIFICATION MODE -->
                         <div class="tool-group">
                             <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
                                 Verification Mode
                             </label>
                             <select id="verifyModeSelect" onchange="toggleVerifyMode()" style="background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
-                                <option value="recent">Recent Target Posts</option>
-                                <option value="range">Range (from N to N)</option>
-                                <option value="single">Single Target Article</option>
+                                <option value="all" selected>All pages</option>
+                                <option value="single">Single page</option>
                             </select>
                         </div>
 
-                        <div style="flex: 2; min-width: 280px;" id="verifyTargetUrlGroup">
-                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Target Overview / Archive URL
-                            </label>
-                            <input type="text" id="verifyTargetUrl" value="https://test13242.mach3blocks.io" placeholder="https://test13242.mach3blocks.io or https://app.mach3blocks.io/preview/?..." style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
-                        </div>
-
-                        <div style="flex: 1; min-width: 120px;" id="verifyMaxPagesGroup">
-                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Pages to Crawl
-                            </label>
-                            <select id="verifyMaxPages" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
-                                <option value="1">1 page</option>
-                                <option value="3" selected>3 pages</option>
-                                <option value="5">5 pages</option>
-                                <option value="10">10 pages</option>
-                                <option value="25">25 pages</option>
-                                <option value="50">50 pages</option>
-                                <option value="0">All pages (Entire Site)</option>
-                            </select>
-                        </div>
-
-                        <div style="flex: 1; min-width: 120px;" id="verifyLimitGroup">
-                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Max Articles
-                            </label>
-                            <select id="verifyLimit" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
-                                <option value="10">10 articles</option>
-                                <option value="25" selected>25 articles</option>
-                                <option value="50">50 articles</option>
-                                <option value="100">100 articles</option>
-                                <option value="0">All discovered articles</option>
-                            </select>
-                        </div>
-
-                        <div style="display: none; align-items: center; gap: 8px;" id="verifyRangeGroup">
+                        <!-- 3. OPTIONS: FROM ... TO FOR ALL PAGES -->
+                        <div style="display: flex; align-items: flex-end; gap: 8px;" id="verifyRangeGroup">
                             <div>
                                 <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                    From Index
+                                    From
                                 </label>
-                                <input type="number" id="verifyFromInput" value="1" min="1" style="width: 80px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                <input type="number" id="verifyFromInput" value="1" min="1" style="width: 75px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
                             </div>
                             <div>
                                 <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                    To Index
+                                    To
                                 </label>
-                                <input type="number" id="verifyToInput" value="10" min="1" style="width: 80px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                                <input type="number" id="verifyToInput" value="494" min="1" style="width: 75px; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
                             </div>
                         </div>
 
-                        <div style="display: none; flex: 2; min-width: 320px;" id="verifySingleGroup">
+                        <!-- 3. OPTIONS: SINGLE PAGE URL -->
+                        <div style="display: none; flex: 2; min-width: 340px;" id="verifySingleGroup">
                             <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Target Article URL or Slug
+                                Single Page URL
                             </label>
-                            <input type="text" id="verifyIdentifier" placeholder="https://test13242.mach3blocks.io/nl/blog/slug~id/ or slug" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
+                            <input type="text" id="verifyIdentifier" placeholder="https://app.mach3blocks.io/preview/?... or article URL" style="width: 100%; background: #181b24; border: 1px solid #2d3345; color: #fff; padding: 9px 12px; border-radius: 6px; font-size: 13px; height: 38px;">
                         </div>
 
-                        <div class="tool-group" style="justify-content: flex-end;">
-                            <label style="font-size: 11px; text-transform: uppercase; color: #8f9ba8; font-weight: 600; margin-bottom: 6px; display: block;">
-                                Filter
-                            </label>
-                            <div class="lang-checkboxes" style="height: 38px; display: flex; align-items: center;">
-                                <label class="lang-label" style="font-size: 13px; color: #c9d1d9;">
-                                    <input type="checkbox" id="verifyOnlyEmbeds" style="width: 15px; height: 15px;">
-                                    Only Instagram / TikTok
-                                </label>
-                            </div>
-                        </div>
-
+                        <!-- 4. ACTION BUTTON -->
                         <div class="tool-group" style="margin-left: auto;">
                             <button id="btnStartVerify" class="btn-mach3" onclick="startVerification()">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -1641,28 +1605,16 @@
 
         function toggleVerifyMode() {
             const mode = document.getElementById('verifyModeSelect').value;
-            const targetUrlGroup = document.getElementById('verifyTargetUrlGroup');
-            const maxPagesGroup = document.getElementById('verifyMaxPagesGroup');
-            const limitGroup = document.getElementById('verifyLimitGroup');
             const rangeGroup = document.getElementById('verifyRangeGroup');
             const singleGroup = document.getElementById('verifySingleGroup');
+            const targetUrlGroup = document.getElementById('verifyTargetUrlGroup');
 
-            if (mode === 'recent') {
+            if (mode === 'all') {
                 targetUrlGroup.style.display = 'block';
-                maxPagesGroup.style.display = 'block';
-                limitGroup.style.display = 'block';
-                rangeGroup.style.display = 'none';
-                singleGroup.style.display = 'none';
-            } else if (mode === 'range') {
-                targetUrlGroup.style.display = 'block';
-                maxPagesGroup.style.display = 'block';
-                limitGroup.style.display = 'none';
                 rangeGroup.style.display = 'flex';
                 singleGroup.style.display = 'none';
             } else if (mode === 'single') {
-                targetUrlGroup.style.display = 'none';
-                maxPagesGroup.style.display = 'none';
-                limitGroup.style.display = 'none';
+                targetUrlGroup.style.display = 'block';
                 rangeGroup.style.display = 'none';
                 singleGroup.style.display = 'block';
             }
@@ -1671,12 +1623,9 @@
         async function startVerification() {
             const mode = document.getElementById('verifyModeSelect').value;
             const targetUrl = document.getElementById('verifyTargetUrl').value.trim();
-            const maxPages = document.getElementById('verifyMaxPages').value;
-            const limit = document.getElementById('verifyLimit').value;
             const fromN = document.getElementById('verifyFromInput').value;
             const toN = document.getElementById('verifyToInput').value;
             const identifier = document.getElementById('verifyIdentifier').value.trim();
-            const onlyEmbeds = document.getElementById('verifyOnlyEmbeds').checked;
 
             const btnStart = document.getElementById('btnStartVerify');
             const btnCancel = document.getElementById('btnCancelVerify');
@@ -1687,17 +1636,15 @@
             const progressCurrentTitle = document.getElementById('verifyCurrentTitle');
             const tableBody = document.getElementById('verifyTableBody');
 
-            let queryParams = `mode=${mode}&only_embeds=${onlyEmbeds ? '1' : '0'}`;
-            if (mode === 'recent') {
-                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&max_pages=${maxPages}&limit=${limit}`;
-            } else if (mode === 'range') {
-                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&max_pages=${maxPages}&from=${fromN}&to=${toN}`;
+            let queryParams = `mode=${mode}&target_url=${encodeURIComponent(targetUrl)}`;
+            if (mode === 'all') {
+                queryParams += `&from=${fromN}&to=${toN}&max_pages=0`;
             } else if (mode === 'single') {
                 if (!identifier) {
-                    alert("Please enter a target article URL or slug to verify.");
+                    alert("Please enter a single page URL to verify.");
                     return;
                 }
-                queryParams += `&target_url=${encodeURIComponent(targetUrl)}&identifier=${encodeURIComponent(identifier)}`;
+                queryParams += `&identifier=${encodeURIComponent(identifier)}`;
             }
 
             btnStart.disabled = true;

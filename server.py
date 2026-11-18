@@ -770,7 +770,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                     progress_callback=crawl_progress
                 )
 
-                if mode == "range" and from_n is not None and to_n is not None:
+                if from_n is not None and to_n is not None:
                     start_idx = max(0, int(from_n) - 1)
                     end_idx = min(len(crawled), int(to_n))
                     target_articles = crawled[start_idx:end_idx]
