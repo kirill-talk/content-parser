@@ -351,7 +351,7 @@
                         <select id="modeSelect" onchange="toggleMode()">
                             <option value="recent">Recent Blog Posts</option>
                             <option value="range">Range (from N to N)</option>
-                            <option value="single">Single Post (ID or Slug)</option>
+                            <option value="single">Single Article (URL, Slug, or ID)</option>
                         </select>
                     </div>
 
@@ -375,8 +375,8 @@
                     </div>
 
                     <div class="tool-group" id="singleGroup" style="display: none;">
-                        <label>Post ID or Slug</label>
-                        <input type="text" id="postIdentifier" placeholder="e.g. 12972 or planten-mooi-neer-te-zetten" style="min-width: 240px;">
+                        <label>Article URL, Slug or ID</label>
+                        <input type="text" id="postIdentifier" placeholder="Paste full article URL, slug or ID..." style="min-width: 380px;">
                     </div>
 
                     <!-- Flexible Language Selector -->
@@ -504,6 +504,7 @@
             const count = document.getElementById('countSelect').value;
             const fromN = document.getElementById('fromInput').value;
             const toN = document.getElementById('toInput').value;
+            const identifier = document.getElementById('postIdentifier').value.trim();
             const langs = getSelectedLanguages();
             const analysisBox = document.getElementById('analysisContainer');
 
@@ -513,6 +514,8 @@
             let url = `/api/analyze?langs=${langs}&count=${count}`;
             if (mode === 'range') {
                 url = `/api/analyze?langs=${langs}&from=${encodeURIComponent(fromN)}&to=${encodeURIComponent(toN)}`;
+            } else if (mode === 'single' && identifier) {
+                url = `/api/analyze?langs=${langs}&identifier=${encodeURIComponent(identifier)}`;
             }
 
             try {

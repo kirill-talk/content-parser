@@ -171,12 +171,33 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         count = int(params.get("count", [5])[0])
         from_n = params.get("from", [None])[0]
         to_n = params.get("to", [None])[0]
+        identifier = params.get("identifier", [None])[0]
         langs_param = params.get("langs", ["nl,en"])[0]
         selected_langs = [l.strip().lower() for l in langs_param.split(",") if l.strip()]
 
         coordinator.set_busy("translation_agent", "Analyzing language availability")
         try:
-            if from_n is not None and to_n is not None:
+            if identifier:
+                clean_ident = identifier.strip()
+                if clean_ident.startswith("http://") or clean_ident.startswith("https://"):
+                    p_path = urllib.parse.urlparse(clean_ident).path
+                    parts = [p for p in p_path.split("/") if p]
+                    if parts:
+                        clean_ident = parts[-1]
+
+                if clean_ident.isdigit():
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts/{clean_ident}?_embed=1"
+                    req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
+                    with urllib.request.urlopen(req, timeout=10) as r:
+                        raw_posts = [json.loads(r.read().decode("utf-8"))]
+                else:
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(clean_ident)}&_embed=1"
+                    req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
+                    with urllib.request.urlopen(req, timeout=10) as r:
+                        raw_posts = json.loads(r.read().decode("utf-8"))
+                        if not raw_posts:
+                            raise ValueError(f"No article found for slug or URL '{clean_ident}'")
+            elif from_n is not None and to_n is not None:
                 start_n = max(1, int(from_n))
                 end_n = max(start_n, int(to_n))
                 fetch_count = min(end_n - start_n + 1, 50)
@@ -211,16 +232,26 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
         coordinator.set_busy("taxonomy_agent", "Applying taxonomy rules")
         try:
             if identifier:
-                if identifier.isdigit():
-                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts/{identifier}?_embed=1"
+                clean_ident = identifier.strip()
+                # If a full URL is passed, extract the slug or ID from URL path
+                if clean_ident.startswith("http://") or clean_ident.startswith("https://"):
+                    p_path = urllib.parse.urlparse(clean_ident).path
+                    parts = [p for p in p_path.split("/") if p]
+                    if parts:
+                        clean_ident = parts[-1]
+
+                if clean_ident.isdigit():
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts/{clean_ident}?_embed=1"
                     req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
                     with urllib.request.urlopen(req, timeout=10) as r:
                         raw_posts = [json.loads(r.read().decode("utf-8"))]
                 else:
-                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(identifier)}&_embed=1"
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(clean_ident)}&_embed=1"
                     req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
                     with urllib.request.urlopen(req, timeout=10) as r:
                         raw_posts = json.loads(r.read().decode("utf-8"))
+                        if not raw_posts:
+                            raise ValueError(f"No article found for slug or URL '{clean_ident}'")
             elif from_n is not None and to_n is not None:
                 start_n = max(1, int(from_n))
                 end_n = max(start_n, int(to_n))
