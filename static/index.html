@@ -656,7 +656,13 @@
             container.innerHTML = '';
 
             data.items.forEach((item) => {
-                const f = item.fields;
+                // Support both new schema ({value: ...}) and raw fields
+                const rawF = item.fields;
+                const f = {};
+                for (let k in rawF) {
+                    f[k] = (rawF[k] && typeof rawF[k] === 'object' && 'value' in rawF[k]) ? rawF[k].value : rawF[k];
+                }
+
                 const card = document.createElement('div');
                 card.className = 'article-card';
 
@@ -666,7 +672,7 @@
                 }).join(' ');
 
                 const sourceUrl = item['source-url'] || `https://anthuriuminfo.com/blog/${item.slug.nl}/`;
-                const activeLangs = Object.keys(f['item-heading']);
+                const activeLangs = Object.keys(f['item-heading'] || {});
 
                 card.innerHTML = `
                     <div class="article-card-header">

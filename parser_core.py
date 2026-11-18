@@ -3,10 +3,12 @@ WordPress API client and Mach3Blocks post transformer with dynamic language supp
 """
 
 import urllib.request
+import urllib.parse
 import json
 import secrets
 import string
 import html
+import re
 from datetime import datetime
 
 from splitter import ContentSplitter
@@ -62,7 +64,7 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
                 elif tax == "category":
                     cat_names.append(term.get("name", ""))
 
-    # Publication date formatting: YYYY-MM-DD HH:MM:SS
+    # Publication date and modification date formatting: YYYY-MM-DD HH:MM:SS
     raw_date = post.get("date", "")
     dt_str = ""
     short_date = ""
@@ -74,19 +76,58 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         except Exception:
             dt_str = raw_date.replace("T", " ")
             short_date = dt_str.split(" ")[0]
-            
+
+    raw_modified = post.get("modified", "") or raw_date
+    mod_str = dt_str
+    if raw_modified:
+        try:
+            dt_m = datetime.fromisoformat(raw_modified)
+            mod_str = dt_m.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            mod_str = raw_modified.replace("T", " ")
+
+    def extract_clean_excerpt(raw_html_text: str) -> str:
+        """Strip HTML tags and clean whitespace for meta descriptions."""
+        if not raw_html_text:
+            return ""
+        clean = re.sub(r'<[^>]+>', ' ', raw_html_text)
+        clean = html.unescape(clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        # Truncate to reasonable meta description length if necessary (~160 chars)
+        if len(clean) > 200:
+            clean = clean[:197].rsplit(' ', 1)[0] + '...'
+        return clean
+
+    yoast_nl = post.get("yoast_head_json", {})
+    desc_nl = yoast_nl.get("description", "") or extract_clean_excerpt(post.get("excerpt", {}).get("rendered", ""))
+    og_img_nl = ""
+    if yoast_nl.get("og_image") and isinstance(yoast_nl["og_image"], list):
+        og_img_nl = yoast_nl["og_image"][0].get("url", "")
+    if not og_img_nl:
+        og_img_nl = featured_media_url
+
+    # Relative path on source site for 301-redirect
+    parsed_source_url = urllib.parse.urlparse(post.get("link", ""))
+    source_rel_path_nl = parsed_source_url.path or f"/blog/{slug}/"
+
     # Process primary Dutch content
     raw_content_nl = post.get("content", {}).get("rendered", "")
     splitter_nl = ContentSplitter(raw_content_nl, featured_media_url=featured_media_url, post_title=title_raw)
     split_nl = splitter_nl.split()
-    
-    # Dictionary of lang-specific splits and titles
+
+    if not desc_nl:
+        desc_nl = extract_clean_excerpt(split_nl["item-intro-text"])
+
+    # Dictionary of lang-specific splits, titles, and SEO meta
     lang_data = {
         "nl": {
             "title": title_raw,
             "slug": slug,
             "split": split_nl,
-            "tags_html": format_tags_html(tag_names)
+            "tags_html": format_tags_html(tag_names),
+            "meta_description": desc_nl,
+            "share_image": og_img_nl,
+            "redirect_path": source_rel_path_nl
         }
     }
 
@@ -105,7 +146,7 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
                 t_fm_url = t_embedded["wp:featuredmedia"][0].get("source_url", "")
             t_splitter = ContentSplitter(t_content, featured_media_url=t_fm_url, post_title=t_title)
             t_split = t_splitter.split()
-            
+
             t_tags = []
             if "wp:term" in t_embedded:
                 for tg in t_embedded["wp:term"]:
@@ -113,12 +154,29 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
                         if t.get("taxonomy") == "post_tag":
                             t_tags.append(t.get("name", ""))
             t_tags_html = format_tags_html(t_tags) if t_tags else lang_data["nl"]["tags_html"]
+
+            t_yoast = trans_post.get("yoast_head_json", {})
+            t_desc = t_yoast.get("description", "") or extract_clean_excerpt(trans_post.get("excerpt", {}).get("rendered", ""))
+            if not t_desc:
+                t_desc = extract_clean_excerpt(t_split["item-intro-text"])
             
+            t_img = ""
+            if t_yoast.get("og_image") and isinstance(t_yoast["og_image"], list):
+                t_img = t_yoast["og_image"][0].get("url", "")
+            if not t_img:
+                t_img = t_fm_url or og_img_nl
+
+            t_parsed_url = urllib.parse.urlparse(trans_post.get("link", ""))
+            t_redirect = t_parsed_url.path or f"/{lang}/{t_slug}/"
+
             lang_data[lang] = {
                 "title": t_title,
                 "slug": t_slug,
                 "split": t_split,
-                "tags_html": t_tags_html
+                "tags_html": t_tags_html,
+                "meta_description": t_desc,
+                "share_image": t_img,
+                "redirect_path": t_redirect
             }
         else:
             # Fallback to NL if no translation found
@@ -126,7 +184,10 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
                 "title": title_raw,
                 "slug": slug,
                 "split": split_nl,
-                "tags_html": lang_data["nl"]["tags_html"]
+                "tags_html": lang_data["nl"]["tags_html"],
+                "meta_description": desc_nl,
+                "share_image": og_img_nl,
+                "redirect_path": source_rel_path_nl
             }
 
     # Construct item-media HTML tag
@@ -139,25 +200,32 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         return {l: key_getter(lang_data[l]) for l in selected_langs if l in lang_data}
 
     item_fields = {
-        "item-heading": make_lang_field(lambda d: d["title"]),
-        "date": {l: short_date for l in selected_langs},
-        "item-media": {l: item_media_html for l in selected_langs},
-        "media-size": {l: "" for l in selected_langs},
-        "item-intro-text": make_lang_field(lambda d: d["split"]["item-intro-text"]),
-        "tags": make_lang_field(lambda d: d["tags_html"]),
-        "text-1": make_lang_field(lambda d: d["split"]["text-1"]),
-        "media-2": make_lang_field(lambda d: d["split"]["media-2"] or split_nl["media-2"]),
-        "media-2-text": make_lang_field(lambda d: d["split"]["media-2-text"] or split_nl["media-2-text"]),
-        "text-2": make_lang_field(lambda d: d["split"]["text-2"]),
-        "instagram": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"]),
-        "media-3": make_lang_field(lambda d: d["split"]["media-3"] or split_nl["media-3"]),
-        "media-3-text": make_lang_field(lambda d: d["split"]["media-3-text"] or split_nl["media-3-text"]),
-        "text-3": make_lang_field(lambda d: d["split"]["text-3"])
+        "item-heading": {"value": make_lang_field(lambda d: d["title"])},
+        "date": {"value": {l: short_date for l in selected_langs}},
+        "item-media": {"value": {l: item_media_html for l in selected_langs}},
+        "media-size": {"value": {l: "" for l in selected_langs}},
+        "item-intro-text": {"value": make_lang_field(lambda d: d["split"]["item-intro-text"])},
+        "tags": {"value": make_lang_field(lambda d: d["tags_html"])},
+        "text-1": {"value": make_lang_field(lambda d: d["split"]["text-1"])},
+        "media-2": {"value": make_lang_field(lambda d: d["split"]["media-2"] or split_nl["media-2"])},
+        "media-2-text": {"value": make_lang_field(lambda d: d["split"]["media-2-text"] or split_nl["media-2-text"])},
+        "text-2": {"value": make_lang_field(lambda d: d["split"]["text-2"])},
+        "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])},
+        "media-3": {"value": make_lang_field(lambda d: d["split"]["media-3"] or split_nl["media-3"])},
+        "media-3-text": {"value": make_lang_field(lambda d: d["split"]["media-3-text"] or split_nl["media-3-text"])},
+        "text-3": {"value": make_lang_field(lambda d: d["split"]["text-3"])}
     }
 
     name_dict = {l: lang_data[l]["title"] for l in selected_langs}
     slug_dict = {l: lang_data[l]["slug"] for l in selected_langs}
-    url_dict = {l: f"{base_domain}/{l}/blog/{lang_data[l]['slug']}~{nano_id}/" for l in selected_langs}
+    meta_desc_dict = {l: lang_data[l]["meta_description"] for l in selected_langs}
+    share_img_dict = {l: lang_data[l]["share_image"] for l in selected_langs}
+    redirect_dict = {l: [lang_data[l]["redirect_path"]] if lang_data[l]["redirect_path"] else [] for l in selected_langs}
+
+    # Check robots meta from Yoast
+    robots = yoast_nl.get("robots", {})
+    noindex = robots.get("index") == "noindex"
+    nofollow = robots.get("follow") == "nofollow"
 
     return {
         "id": post_id,
@@ -165,11 +233,25 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         "source-url": original_link,
         "name": name_dict,
         "slug": slug_dict,
-        "url": url_dict,
-        "href": url_dict,
-        "target": None,
+        "301-redirect": redirect_dict,
+        "target": {l: "_self" for l in selected_langs},
+        "aria-label": name_dict,
+        "meta-title": name_dict,
+        "meta-description": meta_desc_dict,
+        "meta-keywords": {l: "" for l in selected_langs},
+        "share-title": name_dict,
+        "share-description": meta_desc_dict,
+        "share-image": share_img_dict,
+        "hidden": False,
+        "unsearchable": False,
+        "noindex": noindex,
+        "nofollow": nofollow,
+        "show-from": dt_str,
+        "hide-from": None,
+        "created": dt_str,
+        "last-modified": mod_str,
         "publication-date": dt_str,
-        "modification-date": dt_str,
+        "modification-date": mod_str,
         "tags": assigned_tag_ids,
         "fields": item_fields
     }
