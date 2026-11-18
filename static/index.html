@@ -634,28 +634,104 @@
             const identifier = document.getElementById('postIdentifier').value.trim();
             const langs = getSelectedLanguages();
             const analysisBox = document.getElementById('analysisContainer');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            const progressBox = document.getElementById('progressContainer');
+            const progressStatus = document.getElementById('progressStatusText');
+            const progressCounter = document.getElementById('progressCounter');
+            const progressBarFill = document.getElementById('progressBarFill');
+            const progressCurrentTitle = document.getElementById('progressCurrentTitle');
 
-            analysisBox.style.display = 'block';
-            analysisBox.innerHTML = '<div style="color:var(--accent);">🔍 Analyzing language availability for selected posts...</div>';
+            analyzeBtn.disabled = true;
+            analysisBox.style.display = 'none';
 
-            let url = `/api/analyze?langs=${langs}&count=${count}`;
+            // Show and reset progress bar for Analysis
+            progressBox.style.display = 'block';
+            progressStatus.textContent = 'Connecting to source API for analysis...';
+            progressCounter.textContent = '0%';
+            progressBarFill.style.width = '0%';
+            progressCurrentTitle.textContent = 'Verifying WordPress REST endpoint...';
+
+            let queryParams = `langs=${langs}&count=${count}`;
             if (mode === 'range') {
-                url = `/api/analyze?langs=${langs}&from=${encodeURIComponent(fromN)}&to=${encodeURIComponent(toN)}`;
+                queryParams = `langs=${langs}&from=${encodeURIComponent(fromN)}&to=${encodeURIComponent(toN)}`;
             } else if (mode === 'single' && identifier) {
-                url = `/api/analyze?langs=${langs}&identifier=${encodeURIComponent(identifier)}`;
+                queryParams = `langs=${langs}&identifier=${encodeURIComponent(identifier)}`;
             }
 
             try {
-                // Fetch site JSON export capability and posts preview
-                const [detectResp, analyzeResp] = await Promise.all([
-                    fetch(`/api/detect?url=${encodeURIComponent('https://anthuriuminfo.com')}`),
-                    fetch(url)
-                ]);
-                const detectData = await detectResp.json();
-                const items = await analyzeResp.json();
-                renderAnalysis(items, detectData);
+                // Fetch detector info in parallel
+                const detectPromise = fetch(`/api/detect?url=${encodeURIComponent('https://anthuriuminfo.com')}`)
+                    .then(r => r.json())
+                    .catch(() => null);
+
+                const resp = await fetch(`/api/analyze/stream?${queryParams}`);
+                if (!resp.ok) throw new Error(`Server returned HTTP ${resp.status}`);
+
+                const reader = resp.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+                let analysisItems = null;
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop();
+
+                    for (const rawEvt of lines) {
+                        const trimmed = rawEvt.trim();
+                        if (!trimmed.startsWith('data: ')) continue;
+                        const jsonStr = trimmed.slice(6);
+                        try {
+                            const evt = JSON.parse(jsonStr);
+                            if (evt.type === 'status') {
+                                progressStatus.textContent = evt.message || 'Fetching articles...';
+                                progressCurrentTitle.textContent = evt.message || '';
+                            } else if (evt.type === 'start') {
+                                progressStatus.textContent = `Analyzing language matches (0 / ${evt.total})`;
+                                progressCounter.textContent = `0 / ${evt.total} (0%)`;
+                                progressCurrentTitle.textContent = 'Querying multilingual versions...';
+                            } else if (evt.type === 'progress') {
+                                const pct = evt.percent || 0;
+                                progressBarFill.style.width = `${pct}%`;
+                                progressCounter.textContent = `${evt.current} / ${evt.total} (${pct}%)`;
+                                progressStatus.textContent = `Analyzing article ${evt.current} of ${evt.total}...`;
+                                progressCurrentTitle.textContent = evt.title ? `#${evt.id || ''} — ${evt.title}` : `Article ${evt.current}`;
+                            } else if (evt.type === 'complete') {
+                                progressBarFill.style.width = '100%';
+                                progressCounter.textContent = `${evt.total} / ${evt.total} (100%)`;
+                                progressStatus.textContent = `Analysis complete! Checked ${evt.total} articles.`;
+                                progressCurrentTitle.textContent = 'Compiling translation matrix table...';
+                                analysisItems = evt.data;
+                            } else if (evt.type === 'error') {
+                                throw new Error(evt.error || 'Analysis error');
+                            }
+                        } catch (parseErr) {
+                            console.error('Error parsing SSE event:', parseErr, jsonStr);
+                        }
+                    }
+                }
+
+                if (!analysisItems) {
+                    throw new Error("No analysis data received from server.");
+                }
+
+                const detectData = await detectPromise;
+                analysisBox.style.display = 'block';
+                renderAnalysis(analysisItems, detectData);
+
+                setTimeout(() => {
+                    if (progressBox) progressBox.style.display = 'none';
+                }, 1500);
+
             } catch (e) {
-                analysisBox.innerHTML = `<div style="color:#ef4444;">Analysis failed: ${e.message}</div>`;
+                progressBox.style.display = 'none';
+                analysisBox.style.display = 'block';
+                analysisBox.innerHTML = `<div style="color:#ef4444; padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 6px;">Analysis failed: ${e.message}</div>`;
+            } finally {
+                analyzeBtn.disabled = false;
             }
         }
 

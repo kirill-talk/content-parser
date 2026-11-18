@@ -34,6 +34,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == "/api/parse/stream":
             self.handle_api_parse_stream(params)
+        elif path == "/api/analyze/stream":
+            self.handle_api_analyze_stream(params)
         elif path == "/api/parse":
             self.handle_api_parse(params)
         elif path == "/api/analyze":
@@ -168,6 +170,125 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+
+    def handle_api_analyze_stream(self, params):
+        """Stream progress events during translation analysis via Server-Sent Events (SSE)."""
+        count = int(params.get("count", [5])[0])
+        from_n = params.get("from", [None])[0]
+        to_n = params.get("to", [None])[0]
+        identifier = params.get("identifier", [None])[0]
+        langs_param = params.get("langs", ["nl,en"])[0]
+        selected_langs = [l.strip().lower() for l in langs_param.split(",") if l.strip()]
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        def send_event(data_dict):
+            payload = f"data: {json.dumps(data_dict, ensure_ascii=False)}\n\n".encode("utf-8")
+            self.wfile.write(payload)
+            self.wfile.flush()
+
+        coordinator.set_busy("translation_agent", "Analyzing language availability")
+
+        try:
+            send_event({
+                "type": "status",
+                "phase": "fetching",
+                "message": "Fetching article list from WordPress REST API..."
+            })
+
+            raw_posts = []
+            if identifier:
+                clean_ident = identifier.strip()
+                if clean_ident.startswith("http://") or clean_ident.startswith("https://"):
+                    p_path = urllib.parse.urlparse(clean_ident).path
+                    parts = [p for p in p_path.split("/") if p]
+                    if parts:
+                        clean_ident = parts[-1]
+
+                if clean_ident.isdigit():
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts/{clean_ident}?_embed=1"
+                    req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
+                    with urllib.request.urlopen(req, timeout=10) as r:
+                        raw_posts = [json.loads(r.read().decode("utf-8"))]
+                else:
+                    url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(clean_ident)}&_embed=1"
+                    req = urllib.request.Request(url, headers={"User-Agent": "MigrationBot/2.0"})
+                    with urllib.request.urlopen(req, timeout=10) as r:
+                        raw_posts = json.loads(r.read().decode("utf-8"))
+                        if not raw_posts:
+                            raise ValueError(f"No article found for slug or URL '{clean_ident}'")
+            elif from_n is not None and to_n is not None:
+                start_n = max(1, int(from_n))
+                end_n = max(start_n, int(to_n))
+                total_to_fetch = end_n - start_n + 1
+                offset = start_n - 1
+                raw_posts = self._fetch_posts_in_batches(total_to_fetch, offset=offset)
+            else:
+                raw_posts = self._fetch_posts_in_batches(count, offset=0)
+
+            total = len(raw_posts)
+            send_event({
+                "type": "start",
+                "phase": "analyzing",
+                "total": total,
+                "message": f"Retrieved {total} articles. Matching multi-language translations..."
+            })
+
+            from multi_lang import find_language_post
+
+            analysis_result = []
+            for idx, p in enumerate(raw_posts, 1):
+                post_title = html.unescape(p.get("title", {}).get("rendered", f"Post #{p.get('id', idx)}"))
+                post_date = p.get("date", "")[:10]
+
+                send_event({
+                    "type": "progress",
+                    "current": idx,
+                    "total": total,
+                    "id": p.get("id"),
+                    "title": post_title,
+                    "percent": round((idx / total) * 100)
+                })
+
+                item_status = {
+                    "id": p.get("id"),
+                    "title": post_title,
+                    "date": post_date,
+                    "languages": {"nl": True}
+                }
+
+                for lang in ["en", "de", "fr"]:
+                    if lang in selected_langs:
+                        match = find_language_post(p, lang)
+                        item_status["languages"][lang] = (match is not None)
+                        if match:
+                            item_status[f"{lang}_title"] = match.get("title", {}).get("rendered", "")
+                    else:
+                        item_status["languages"][lang] = False
+
+                analysis_result.append(item_status)
+
+            send_event({
+                "type": "complete",
+                "total": total,
+                "data": analysis_result
+            })
+        except Exception as e:
+            try:
+                send_event({
+                    "type": "error",
+                    "error": str(e)
+                })
+            except Exception:
+                pass
+        finally:
+            coordinator.set_ready("translation_agent")
 
     def handle_api_analyze(self, params):
         """Pre-import analysis: check availability of translations without full HTML payload."""
