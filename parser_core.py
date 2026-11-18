@@ -207,15 +207,15 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         "date": {"value": {l: short_date for l in selected_langs}},
         "item-media": {"value": {l: item_media_html for l in selected_langs}},
         "media-size": {"value": {l: "" for l in selected_langs}},
-        "item-intro-text": {"value": make_lang_field(lambda d: d["split"]["item-intro-text"])},
         "tags": {"value": make_lang_field(lambda d: d["tags_html"])},
-        "text-1": {"value": make_lang_field(lambda d: d["split"]["text-1"])},
+        "item-intro-text": {"value": make_lang_field(lambda d: d["split"]["item-intro-text"])},
         "media-2": {"value": {l: media_2_html for l in selected_langs}},
         "media-2-text": {"value": make_lang_field(lambda d: d["split"]["media-2-text"] or split_nl["media-2-text"])},
-        "text-2": {"value": make_lang_field(lambda d: d["split"]["text-2"])},
-        "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])},
+        "text-1": {"value": make_lang_field(lambda d: d["split"]["text-1"])},
         "media-3": {"value": {l: media_3_html for l in selected_langs}},
         "media-3-text": {"value": make_lang_field(lambda d: d["split"]["media-3-text"] or split_nl["media-3-text"])},
+        "text-2": {"value": make_lang_field(lambda d: d["split"]["text-2"])},
+        "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])},
         "text-3": {"value": make_lang_field(lambda d: d["split"]["text-3"])}
     }
 

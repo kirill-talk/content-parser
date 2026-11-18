@@ -738,7 +738,7 @@
 
                 let fieldsHtml = '';
                 if (isSingleMode) {
-                    // Sequential 1-column layout: 1 to 14 stacked vertically
+                    // Sequential 1-column layout matching exact target schema order
                     fieldsHtml = `
                         <div class="fields-grid single-column">
                             <div class="col-fields">
@@ -759,40 +759,40 @@
                                     <div class="field-lang-block"><em>(Empty)</em></div>
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">5. item-intro-text</span><span class="field-type-pill">Text</span></div>
-                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-intro-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
-                                </div>
-                                <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">6. tags</span><span class="field-type-pill">Text HTML</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">5. tags</span><span class="field-type-pill">Text</span></div>
                                     ${renderRichField(f.tags, false)}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">7. text-1</span><span class="field-type-pill">Text</span></div>
-                                    ${renderRichField(f['text-1'], true)}
+                                    <div class="field-title-row"><span class="field-name-label">6. item-intro-text</span><span class="field-type-pill">Text</span></div>
+                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-intro-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">8. media-2</span><span class="field-type-pill">Media</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">7. media-2</span><span class="field-type-pill">Media</span></div>
                                     ${renderMediaField(f['media-2'])}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">9. media-2-text</span><span class="field-type-pill">Heading</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">8. media-2-text</span><span class="field-type-pill">Heading</span></div>
                                     ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-2-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">10. text-2</span><span class="field-type-pill">Text</span></div>
-                                    ${renderRichField(f['text-2'], true)}
+                                    <div class="field-title-row"><span class="field-name-label">9. text-1</span><span class="field-type-pill">Text</span></div>
+                                    ${renderRichField(f['text-1'], true)}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">11. instagram</span><span class="field-type-pill">URL</span></div>
-                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f.instagram[l] ? `<a href="${f.instagram[l]}" target="_blank" style="color:var(--accent)">${f.instagram[l]}</a>` : '<em>(Empty)</em>'}</div>`).join('')}
-                                </div>
-                                <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">12. media-3</span><span class="field-type-pill">Media</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">10. media-3</span><span class="field-type-pill">Media</span></div>
                                     ${renderMediaField(f['media-3'])}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">13. media-3-text</span><span class="field-type-pill">Heading</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">11. media-3-text</span><span class="field-type-pill">Heading</span></div>
                                     ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-3-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                                </div>
+                                <div class="field-box">
+                                    <div class="field-title-row"><span class="field-name-label">12. text-2</span><span class="field-type-pill">Text</span></div>
+                                    ${renderRichField(f['text-2'], true)}
+                                </div>
+                                <div class="field-box">
+                                    <div class="field-title-row"><span class="field-name-label">13. instagram</span><span class="field-type-pill">URL</span></div>
+                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f.instagram[l] ? `<a href="${f.instagram[l]}" target="_blank" style="color:var(--accent)">${f.instagram[l]}</a>` : '<em>(Empty)</em>'}</div>`).join('')}
                                 </div>
                                 <div class="field-box">
                                     <div class="field-title-row"><span class="field-name-label">14. text-3</span><span class="field-type-pill">Text</span></div>
@@ -802,7 +802,7 @@
                         </div>
                     `;
                 } else {
-                    // Standard 2-column layout for batches
+                    // Standard 2-column layout matching new order
                     fieldsHtml = `
                         <div class="fields-grid">
                             <div class="col-fields">
@@ -823,43 +823,43 @@
                                     <div class="field-lang-block"><em>(Empty)</em></div>
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">5. item-intro-text</span><span class="field-type-pill">Text</span></div>
-                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-intro-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
-                                </div>
-                                <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">6. tags</span><span class="field-type-pill">Text HTML</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">5. tags</span><span class="field-type-pill">Text</span></div>
                                     ${renderRichField(f.tags, false)}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">7. text-1</span><span class="field-type-pill">Text</span></div>
-                                    ${renderRichField(f['text-1'], true)}
+                                    <div class="field-title-row"><span class="field-name-label">6. item-intro-text</span><span class="field-type-pill">Text</span></div>
+                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['item-intro-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                                </div>
+                                <div class="field-box">
+                                    <div class="field-title-row"><span class="field-name-label">7. media-2</span><span class="field-type-pill">Media</span></div>
+                                    ${renderMediaField(f['media-2'])}
                                 </div>
                             </div>
 
                             <div class="col-fields">
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">8. media-2</span><span class="field-type-pill">Media</span></div>
-                                    ${renderMediaField(f['media-2'])}
-                                </div>
-                                <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">9. media-2-text</span><span class="field-type-pill">Heading</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">8. media-2-text</span><span class="field-type-pill">Heading</span></div>
                                     ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-2-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">10. text-2</span><span class="field-type-pill">Text</span></div>
-                                    ${renderRichField(f['text-2'], true)}
+                                    <div class="field-title-row"><span class="field-name-label">9. text-1</span><span class="field-type-pill">Text</span></div>
+                                    ${renderRichField(f['text-1'], true)}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">11. instagram</span><span class="field-type-pill">URL</span></div>
-                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f.instagram[l] ? `<a href="${f.instagram[l]}" target="_blank" style="color:var(--accent)">${f.instagram[l]}</a>` : '<em>(Empty)</em>'}</div>`).join('')}
-                                </div>
-                                <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">12. media-3</span><span class="field-type-pill">Media</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">10. media-3</span><span class="field-type-pill">Media</span></div>
                                     ${renderMediaField(f['media-3'])}
                                 </div>
                                 <div class="field-box">
-                                    <div class="field-title-row"><span class="field-name-label">13. media-3-text</span><span class="field-type-pill">Heading</span></div>
+                                    <div class="field-title-row"><span class="field-name-label">11. media-3-text</span><span class="field-type-pill">Heading</span></div>
                                     ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f['media-3-text'][l] || '<em>(Empty)</em>'}</div>`).join('')}
+                                </div>
+                                <div class="field-box">
+                                    <div class="field-title-row"><span class="field-name-label">12. text-2</span><span class="field-type-pill">Text</span></div>
+                                    ${renderRichField(f['text-2'], true)}
+                                </div>
+                                <div class="field-box">
+                                    <div class="field-title-row"><span class="field-name-label">13. instagram</span><span class="field-type-pill">URL</span></div>
+                                    ${activeLangs.map(l => `<div class="field-lang-block"><span class="lang-prefix">${l}</span>${f.instagram[l] ? `<a href="${f.instagram[l]}" target="_blank" style="color:var(--accent)">${f.instagram[l]}</a>` : '<em>(Empty)</em>'}</div>`).join('')}
                                 </div>
                                 <div class="field-box">
                                     <div class="field-title-row"><span class="field-name-label">14. text-3</span><span class="field-type-pill">Text</span></div>

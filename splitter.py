@@ -143,16 +143,25 @@ class ContentSplitter:
         media_3_html = f'<img src="{media_blocks[1]["src"]}" alt="{media_blocks[1]["alt"]}">' if len(media_blocks) > 1 and media_blocks[1]["src"] else ""
         media_3_text = media_blocks[1]["caption"] if len(media_blocks) > 1 else ""
         
-        # Remove h2 or heading duplicate from the beginning of text_1
+        # Normalize headings across text blocks:
+        # Convert first h2/heading in text_1 into <h2 class="heading-1 dark">...</h2>
+        # Normalize all other headings into <h3 class="heading-3 dark">...</h3>
         bucket_0 = text_buckets[0]
-        if bucket_0:
-            first_elem = bucket_0[0]
-            # Check if first element is an <h2> or contains heading text similar to post title
-            if re.match(r'^<h[1-6][^>]*>', first_elem, re.IGNORECASE):
-                bucket_0.pop(0)
+        has_lead_h2 = False
+        if bucket_0 and re.match(r'^<h[1-6][^>]*>', bucket_0[0], re.IGNORECASE):
+            lead_h2 = bucket_0.pop(0)
+            inner_text = re.sub(r'<[^>]+>', '', lead_h2).strip()
+            bucket_0.insert(0, f'<h2 class="heading-1 dark">{inner_text}</h2>')
+            has_lead_h2 = True
 
-        # Normalize remaining headings across all text blocks to <h3 class="heading-3 dark">
-        text_1_html = self._normalize_headings("\r\n".join(bucket_0))
+        if has_lead_h2 and len(bucket_0) > 1:
+            rest_html = self._normalize_headings("\r\n".join(bucket_0[1:]))
+            text_1_html = bucket_0[0] + "\r\n" + rest_html
+        elif bucket_0:
+            text_1_html = self._normalize_headings("\r\n".join(bucket_0))
+        else:
+            text_1_html = ""
+
         text_2_html = self._normalize_headings("\r\n".join(text_buckets[1]))
         text_3_html = self._normalize_headings("\r\n".join(text_buckets[2]))
         
