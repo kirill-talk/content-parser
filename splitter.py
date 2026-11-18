@@ -111,15 +111,34 @@ class ContentSplitter:
             
         return {"src": src, "alt": alt, "caption": caption}
 
-    def _extract_instagram(self, text: str) -> tuple[str, str]:
-        """Find Instagram link/embed if present, return (instagram_url, cleaned_text)."""
+    def _extract_social_embed(self, text: str) -> tuple[str, str]:
+        """Find Instagram or TikTok link/embed if present, return (embed_url, cleaned_text)."""
+        # 1. Instagram match
         insta_match = re.search(r'https?://(?:www\.)?instagram\.com/(?:p|reel)/[a-zA-Z0-9_\-]+/?(?:\?[^\s"\'<>]*)?', text)
         if insta_match:
             insta_url = insta_match.group(0)
-            # Remove link or block from text if it was an isolated paragraph
             text = re.sub(r'<p>\s*<a[^>]+href=["\']' + re.escape(insta_url) + r'["\'][^>]*>.*?</a>\s*</p>', '', text)
             text = text.replace(insta_url, '')
             return insta_url, text
+
+        # 2. TikTok embed blockquote match
+        tiktok_cite = re.search(r'<blockquote[^>]+class=["\'][^"\']*tiktok-embed[^"\']*["\'][^>]*cite=["\']([^"\']+)["\']', text, re.IGNORECASE)
+        if tiktok_cite:
+            tiktok_url = tiktok_cite.group(1)
+            # Remove full blockquote and any script tags associated with it
+            text = re.sub(r'<blockquote[^>]+class=["\'][^"\']*tiktok-embed[^"\']*["\'].*?</blockquote>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<p>\s*<script[^>]+tiktok\.com[^>]*>.*?</script>\s*</p>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            text = re.sub(r'<script[^>]+tiktok\.com[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+            return tiktok_url, text
+
+        # 3. Plain TikTok URL match in text / paragraphs
+        tiktok_match = re.search(r'https?://(?:www\.)?tiktok\.com/@[^/\s]+/video/\d+', text)
+        if tiktok_match:
+            tiktok_url = tiktok_match.group(0)
+            text = re.sub(r'<p>\s*<a[^>]+href=["\']' + re.escape(tiktok_url) + r'["\'][^>]*>.*?</a>\s*</p>', '', text)
+            text = text.replace(tiktok_url, '')
+            return tiktok_url, text
+
         return "", text
 
     def _clean_tag_attributes(self, html_text: str) -> str:
@@ -139,8 +158,8 @@ class ContentSplitter:
 
     def split(self) -> dict:
         """Split content into structured slots."""
-        # 1. Instagram check
-        instagram_url, clean_html = self._extract_instagram(self.raw_html)
+        # 1. Social embed check (Instagram / TikTok)
+        instagram_url, clean_html = self._extract_social_embed(self.raw_html)
         
         # 2. Extract intro text: content before <!--more--> or the first <p>
         intro_text = ""
