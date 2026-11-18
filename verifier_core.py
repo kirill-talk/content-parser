@@ -242,7 +242,8 @@ def discover_target_articles(
     base_url: str = "https://test13242.mach3blocks.io",
     archive_path: str = "/nl/tips-advies/",
     max_pages: int = 10,
-    progress_callback = None
+    progress_callback = None,
+    stop_at_count: int = 0
 ) -> List[Dict[str, str]]:
     """
     Crawl archive pagination on target site and collect published article URLs and slugs.
@@ -250,29 +251,24 @@ def discover_target_articles(
     1. Standard domain archive: e.g. https://test13242.mach3blocks.io/nl/tips-advies/
     2. Mach3Blocks Preview overview: e.g. https://app.mach3blocks.io/preview/?wid=113568&pid=...&pkey=...
     3. Custom overview URLs with query params.
-    max_pages <= 0 means crawl ALL available pages until pagination ends.
+    Uses concurrent fetching for ultra-fast archive discovery.
     """
     found_articles = []
     seen_urls = set()
 
-    # Parse provided base URL
     parsed_input = urllib.parse.urlparse(base_url.strip())
     domain_base = f"{parsed_input.scheme}://{parsed_input.netloc}"
-
     is_preview = "preview" in parsed_input.path or "app.mach3blocks.io" in parsed_input.netloc or bool(parsed_input.query)
 
-    page = 1
-    max_limit = 1000 if max_pages <= 0 else max_pages
-
-    while page <= max_limit:
+    def build_page_url(p_num: int) -> str:
         if is_preview:
             qs = urllib.parse.parse_qs(parsed_input.query)
-            if page > 1:
-                qs['page'] = [str(page)]
+            if p_num > 1:
+                qs['page'] = [str(p_num)]
             else:
                 qs.pop('page', None)
             new_query = urllib.parse.urlencode(qs, doseq=True)
-            page_url = urllib.parse.urlunparse((
+            return urllib.parse.urlunparse((
                 parsed_input.scheme,
                 parsed_input.netloc,
                 parsed_input.path,
@@ -283,63 +279,95 @@ def discover_target_articles(
         else:
             clean_base = domain_base.rstrip('/')
             clean_path = archive_path if archive_path.startswith('/') else f"/{archive_path}"
-            if page == 1:
-                page_url = f"{clean_base}{clean_path}"
+            if p_num == 1:
+                return f"{clean_base}{clean_path}"
             else:
                 delim = "&" if "?" in clean_path else "?"
-                page_url = f"{clean_base}{clean_path}{delim}page={page}"
+                return f"{clean_base}{clean_path}{delim}page={p_num}"
+
+    def extract_articles_from_html(content: str) -> List[Dict[str, str]]:
+        page_items = []
+        page_seen = set()
+
+        # Pattern 1: Mach3Blocks preview links
+        preview_links = re.findall(r'href=[\"\'](/preview/\?[^\"\']*(?:ciid|cid)=[^\"\']+)[\"\']', content)
+        for p_href in preview_links:
+            clean_href = html.unescape(p_href).replace('&amp;', '&')
+            full_url = f"{domain_base}{clean_href}"
+            if full_url not in page_seen:
+                page_seen.add(full_url)
+                page_items.append({
+                    "url": full_url,
+                    "slug": "",
+                    "nano_id": "",
+                    "path": clean_href
+                })
+
+        # Pattern 2: Standard blog links
+        standard_links = re.findall(r'href=[\"\'](/nl/blog/([^/\"\'~]+)(?:~([^/\"\'~]+))?/?[\"\'])', content)
+        for rel_href, slug_part, nano_id in standard_links:
+            full_path = rel_href.split('"')[0].split("'")[0]
+            if not full_path.endswith('/'):
+                full_path += '/'
+            full_target_url = f"{domain_base}{full_path}"
+            if full_target_url not in page_seen:
+                page_seen.add(full_target_url)
+                page_items.append({
+                    "url": full_target_url,
+                    "slug": slug_part,
+                    "nano_id": nano_id or "",
+                    "path": full_path
+                })
+
+        return page_items
+
+    from concurrent.futures import ThreadPoolExecutor
+
+    def fetch_single_page(p_num: int):
+        u = build_page_url(p_num)
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                raw = resp.read().decode('utf-8', errors='ignore')
+                return p_num, extract_articles_from_html(raw)
+        except Exception:
+            return p_num, []
+
+    # Fetch pages in chunks of 10 concurrently
+    chunk_size = 10
+    curr_start_page = 1
+    max_crawl_pages = 100 if max_pages <= 0 else max_pages
+
+    while curr_start_page <= max_crawl_pages:
+        chunk_end = min(curr_start_page + chunk_size - 1, max_crawl_pages)
+        pages_to_fetch = list(range(curr_start_page, chunk_end + 1))
 
         if progress_callback:
-            progress_callback(page, len(found_articles))
+            progress_callback(curr_start_page, len(found_articles))
 
-        try:
-            req = urllib.request.Request(page_url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                content = resp.read().decode('utf-8', errors='ignore')
-        except Exception:
+        with ThreadPoolExecutor(max_workers=min(10, len(pages_to_fetch))) as pool:
+            results = list(pool.map(fetch_single_page, pages_to_fetch))
+
+        # Sort results by page number to preserve order
+        results.sort(key=lambda x: x[0])
+
+        consecutive_empty = False
+        for p_num, items in results:
+            if not items:
+                consecutive_empty = True
+                break
+            for item in items:
+                if item["url"] not in seen_urls:
+                    seen_urls.add(item["url"])
+                    found_articles.append(item)
+
+            if stop_at_count > 0 and len(found_articles) >= stop_at_count:
+                return found_articles[:stop_at_count]
+
+        if consecutive_empty:
             break
 
-        new_on_page = 0
-
-        # Pattern 1: Mach3Blocks preview links: /preview/?wid=...&(ciid|cid)=...&cikey=...
-        preview_links = re.findall(r'href=[\"\'](/preview/\?[^\"\']*(?:ciid|cid)=[^\"\']+)[\"\']', content)
-        if preview_links:
-            for p_href in preview_links:
-                clean_href = html.unescape(p_href).replace('&amp;', '&')
-                full_url = f"{domain_base}{clean_href}"
-                if full_url not in seen_urls:
-                    seen_urls.add(full_url)
-                    new_on_page += 1
-                    found_articles.append({
-                        "url": full_url,
-                        "slug": "",
-                        "nano_id": "",
-                        "path": clean_href
-                    })
-
-        # Pattern 2: Standard blog links: /nl/blog/{slug-with-nano-id}/
-        standard_links = re.findall(r'href=[\"\'](/nl/blog/([^/\"\'~]+)(?:~([^/\"\'~]+))?/?[\"\'])', content)
-        if standard_links:
-            for rel_href, slug_part, nano_id in standard_links:
-                full_path = rel_href.split('"')[0].split("'")[0]
-                if not full_path.endswith('/'):
-                    full_path += '/'
-                full_target_url = f"{domain_base}{full_path}"
-
-                if full_target_url not in seen_urls:
-                    seen_urls.add(full_target_url)
-                    new_on_page += 1
-                    found_articles.append({
-                        "url": full_target_url,
-                        "slug": slug_part,
-                        "nano_id": nano_id or "",
-                        "path": full_path
-                    })
-
-        if new_on_page == 0:
-            break
-
-        page += 1
+        curr_start_page += chunk_size
 
     return found_articles
 

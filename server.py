@@ -800,11 +800,14 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                         "message": f"Crawling page {cur_page}... Discovered {total_found} articles so far."
                     })
 
+                stop_needed = int(to_n) if (to_n and int(to_n) > 0) else 0
+
                 crawled = discover_target_articles(
                     base_url=target_base,
                     archive_path="/nl/tips-advies/",
                     max_pages=max_target_pages,
-                    progress_callback=crawl_progress
+                    progress_callback=crawl_progress,
+                    stop_at_count=stop_needed
                 )
 
                 if from_n is not None and to_n is not None:
