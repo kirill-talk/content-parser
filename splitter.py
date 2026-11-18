@@ -116,9 +116,9 @@ class ContentSplitter:
             if cleaned:
                 elements.append(cleaned)
                 
-        # 4. Partition elements into slots: text-1, media-2, text-2, media-3, text-3
+        # 4. Partition elements into slots: text-1, media-2, media-3, text-2 (text-2 now contains all subsequent text)
         media_blocks = []
-        text_buckets = [[], [], []] # bucket 0 -> text-1, bucket 1 -> text-2, bucket 2 -> text-3
+        text_buckets = [[], []] # bucket 0 -> text-1, bucket 1 -> text-2 (merges former text-2 and text-3)
         current_bucket = 0
         
         for elem in elements:
@@ -132,7 +132,7 @@ class ContentSplitter:
             
             if is_image and len(media_blocks) < 2:
                 media_blocks.append(self._extract_img_info(elem))
-                current_bucket = min(current_bucket + 1, 2)
+                current_bucket = 1
             else:
                 text_buckets[current_bucket].append(elem)
                 
@@ -163,7 +163,6 @@ class ContentSplitter:
             text_1_html = ""
 
         text_2_html = self._normalize_headings("\r\n".join(text_buckets[1]))
-        text_3_html = self._normalize_headings("\r\n".join(text_buckets[2]))
         
         # If text_1 ended up empty, distribute from text_2 or intro
         if not text_1_html and text_2_html:
@@ -175,9 +174,8 @@ class ContentSplitter:
             "text-1": text_1_html,
             "media-2": media_2_html,
             "media-2-text": media_2_text,
-            "text-2": text_2_html,
-            "instagram": instagram_url,
             "media-3": media_3_html,
             "media-3-text": media_3_text,
-            "text-3": text_3_html,
+            "text-2": text_2_html,
+            "instagram": instagram_url,
         }

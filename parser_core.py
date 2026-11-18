@@ -215,8 +215,7 @@ def transform_post(post: dict, base_domain: str = "https://test13242.mach3blocks
         "media-3": {"value": {l: media_3_html for l in selected_langs}},
         "media-3-text": {"value": make_lang_field(lambda d: d["split"]["media-3-text"] or split_nl["media-3-text"])},
         "text-2": {"value": make_lang_field(lambda d: d["split"]["text-2"])},
-        "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])},
-        "text-3": {"value": make_lang_field(lambda d: d["split"]["text-3"])}
+        "instagram": {"value": make_lang_field(lambda d: d["split"]["instagram"] or split_nl["instagram"])}
     }
 
     name_dict = {l: lang_data[l]["title"] for l in selected_langs}
