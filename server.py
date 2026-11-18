@@ -623,7 +623,7 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
 
     def handle_api_verify_single(self):
-        """Verify a single article given source_url/slug and target_url."""
+        """Verify a single article given source_url/slug and target_url, or target_url with automatic matching."""
         content_length = int(self.headers.get("Content-Length", 0))
         post_data = self.rfile.read(content_length).decode("utf-8")
         try:
@@ -632,17 +632,8 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
             target_url = data.get("target_url", "")
             lang = data.get("lang", "nl")
 
-            if not source_slug or not target_url:
-                raise ValueError("Both 'source_slug' and 'target_url' are required.")
-
-            # Fetch source WP post
-            wp_api_url = f"https://anthuriuminfo.com/wp-json/wp/v2/posts?slug={urllib.parse.quote(source_slug)}&_embed=1"
-            req = urllib.request.Request(wp_api_url, headers={"User-Agent": "MigrationVerifier/1.0"})
-            with urllib.request.urlopen(req, timeout=10) as r:
-                wp_posts = json.loads(r.read().decode("utf-8"))
-                if not wp_posts:
-                    raise ValueError(f"Source post '{source_slug}' not found.")
-                source_post = wp_posts[0]
+            if not target_url:
+                raise ValueError("'target_url' is required.")
 
             # Fetch target HTML
             req_t = urllib.request.Request(target_url, headers={"User-Agent": "MigrationVerifier/1.0"})
@@ -650,7 +641,53 @@ class MigrationHandler(http.server.SimpleHTTPRequestHandler):
                 target_html = r_t.read().decode("utf-8", errors="ignore")
             target_parsed = parse_target_page(target_html, target_url=target_url)
 
-            comparison = compare_article(source_post, target_parsed, lang=lang)
+            # Determine slug from target_url or source_slug
+            target_slug = source_slug
+            if not target_slug:
+                p_url = urllib.parse.urlparse(target_url)
+                parts = [p for p in p_url.path.split("/") if p]
+                if parts:
+                    target_slug = parts[-1]
+
+            # Try to match source post from cache first, then WP API
+            cached_export = load_parsed_export_cache()
+            cached_items = cached_export.get("items", []) if cached_export else []
+            source_post = None
+
+            if cached_items:
+                source_post = match_cached_item(
+                    target_slug=target_slug,
+                    target_title=target_parsed.get("title", ""),
+                    cached_items=cached_items,
+                    lang=lang
+                )
+
+            if not source_post:
+                source_post = match_source_post(
+                    target_slug=target_slug,
+                    target_title=target_parsed.get("title", ""),
+                    wp_api_base="https://anthuriuminfo.com"
+                )
+
+            if not source_post:
+                comparison = {
+                    "status": "MISSING_SOURCE",
+                    "slug": target_slug or "unknown",
+                    "source_url": None,
+                    "target_url": target_url,
+                    "title": {"expected": "", "actual": target_parsed.get("title", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                    "intro": {"expected": "", "actual": target_parsed.get("intro_text", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                    "text_1": {"expected": "", "actual": target_parsed.get("text_1", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                    "text_2": {"expected": "", "actual": target_parsed.get("text_2", ""), "similarity": 0.0, "status": "UNKNOWN"},
+                    "embeds": {
+                        "expected": "",
+                        "expected_type": None,
+                        "found_urls": target_parsed.get("boxes_with_data_url", []),
+                        "status": "EXTRA" if target_parsed.get("boxes_with_data_url") else "NONE"
+                    }
+                }
+            else:
+                comparison = compare_article(source_post, target_parsed, lang=lang)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")

@@ -1928,6 +1928,61 @@
             tr.parentNode.replaceChild(newTr, tr);
         }
 
+        async function rescanSingleArticle(index) {
+            const item = verifiedItemsList[index];
+            if (!item || !item.target_url) return;
+
+            const btn = document.getElementById(`btnRescan_${index}`);
+            const originalText = btn ? btn.textContent : '↻ Rescan';
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = '⏳ Rescanning...';
+                btn.style.opacity = '0.7';
+            }
+
+            try {
+                const resp = await fetch('/api/verify/single', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        target_url: item.target_url,
+                        source_slug: item.slug || '',
+                        lang: 'nl'
+                    })
+                });
+
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${resp.status}`);
+                }
+
+                const updatedItem = await resp.json();
+                verifiedItemsList[index] = updatedItem;
+                updateVerifyTableRow(updatedItem, index);
+                updateVerifyKPIs();
+
+                // Highlight updated row briefly
+                const updatedRow = document.getElementById(`vrow_${index}`);
+                if (updatedRow) {
+                    updatedRow.style.transition = 'background-color 0.4s';
+                    updatedRow.style.backgroundColor = 'rgba(56, 189, 248, 0.15)';
+                    setTimeout(() => {
+                        updatedRow.style.backgroundColor = '';
+                    }, 1200);
+                }
+            } catch (err) {
+                console.error("Rescan error:", err);
+                alert(`Rescan failed for ${item.slug || item.target_url}: ${err.message}`);
+            } finally {
+                const activeBtn = document.getElementById(`btnRescan_${index}`);
+                if (activeBtn) {
+                    activeBtn.disabled = false;
+                    activeBtn.textContent = '↻ Rescan';
+                    activeBtn.style.opacity = '1';
+                }
+            }
+        }
+
         function createVerifyTableRowElement(item, index) {
             const tr = document.createElement('tr');
             tr.id = `vrow_${index}`;
@@ -1959,7 +2014,10 @@
                 <td>${getSimBadge(item.text_1)}</td>
                 <td>${getSimBadge(item.text_2)}</td>
                 <td>${getEmbedBadge(item.embeds)}</td>
-                <td style="text-align: right;">
+                <td style="text-align: right; white-space: nowrap;">
+                    <button class="btn-rescan" id="btnRescan_${index}" onclick="rescanSingleArticle(${index})" style="background: #1e2430; border: 1px solid #30363d; color: #38bdf8; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600; margin-right: 6px;">
+                        ↻ Rescan
+                    </button>
                     <button class="btn-inspect" onclick="openDiffModal(${index})" style="background: #212631; border: 1px solid #30363d; color: #58a6ff; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;">
                         Diff Inspect
                     </button>
@@ -1971,101 +2029,6 @@
         function appendVerifyTableRow(item, index) {
             const tbody = document.getElementById('verifyTableBody');
             const tr = createVerifyTableRowElement(item, index);
-            tbody.appendChild(tr);
-        }
-
-        function updateVerifyKPIs() {
-            let total = verifiedItemsList.length;
-            let passed = 0;
-            let warn = 0;
-            let failed = 0;
-            let missingEmbeds = 0;
-
-            verifiedItemsList.forEach(item => {
-                if (item.status === 'PASSED') passed++;
-                else if (item.status === 'WARNING') warn++;
-                else failed++;
-
-                if (item.embeds && item.embeds.status === 'MISSING') {
-                    missingEmbeds++;
-                }
-            });
-
-            document.getElementById('kpiTotal').textContent = total;
-            document.getElementById('kpiPassed').textContent = passed;
-            document.getElementById('kpiWarn').textContent = warn;
-            document.getElementById('kpiFailed').textContent = failed;
-            document.getElementById('kpiEmbeds').textContent = missingEmbeds;
-            document.getElementById('verifyTableCount').textContent = `${total} items`;
-        }
-
-        function getSimBadge(field) {
-            if (!field) return '<span style="color:#8b949e;">-</span>';
-            const sim = field.similarity !== undefined ? field.similarity : 0;
-            let color = '#3fb950';
-            let bg = 'rgba(63,185,80,0.15)';
-            if (sim < 80) { color = '#f85149'; bg = 'rgba(248,81,73,0.15)'; }
-            else if (sim < 95) { color = '#d29922'; bg = 'rgba(210,153,34,0.15)'; }
-            return `<span style="display:inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: ${color}; background: ${bg};">${sim}%</span>`;
-        }
-
-        function getEmbedBadge(embeds) {
-            if (!embeds || embeds.status === 'NONE') {
-                return '<span style="color:#8b949e; font-size: 11px;">None</span>';
-            }
-            if (embeds.status === 'MATCH') {
-                const type = (embeds.expected_type || 'Embed').toUpperCase();
-                return `<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #3fb950; background: rgba(63,185,80,0.15);">✓ ${type}</span>`;
-            }
-            if (embeds.status === 'MISSING') {
-                const type = (embeds.expected_type || 'Embed').toUpperCase();
-                return `<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #f85149; background: rgba(248,81,73,0.15);">MISSING ${type}</span>`;
-            }
-            if (embeds.status === 'EXTRA') {
-                return '<span style="padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; color: #d29922; background: rgba(210,153,34,0.15);">Extra Embed</span>';
-            }
-            return `<span style="color:#8b949e;">${embeds.status}</span>`;
-        }
-
-        function appendVerifyTableRow(item, index) {
-            const tbody = document.getElementById('verifyTableBody');
-            const tr = document.createElement('tr');
-            tr.id = `vrow_${index}`;
-
-            let statusBadge = '<span style="color:#3fb950; font-weight:700;">PASSED</span>';
-            if (item.status === 'WARNING') {
-                statusBadge = '<span style="color:#d29922; font-weight:700;">WARNING</span>';
-            } else if (item.status === 'FAILED') {
-                statusBadge = '<span style="color:#f85149; font-weight:700;">FAILED</span>';
-            } else if (item.status === 'MISSING_SOURCE') {
-                statusBadge = '<span style="color:#8b949e; font-weight:700;">NO SOURCE</span>';
-            }
-
-            const title = item.title ? (item.title.expected || item.title.actual || item.slug) : item.slug;
-            const targetLink = item.target_url ? `<a href="${item.target_url}" target="_blank" style="color: #58a6ff; font-size: 11px; text-decoration: none; margin-left: 6px;">[Target ↗]</a>` : '';
-            const sourceLink = item.source_url ? `<a href="${item.source_url}" target="_blank" style="color: #8b949e; font-size: 11px; text-decoration: none;">[Source ↗]</a>` : '';
-
-            tr.innerHTML = `
-                <td>${statusBadge}</td>
-                <td>
-                    <div style="font-weight: 600; color: #fff; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${title}">
-                        ${title}
-                    </div>
-                    <div style="font-size: 11px; color: #8b949e; margin-top: 2px;">
-                        <code>${item.slug}</code> ${sourceLink} ${targetLink}
-                    </div>
-                </td>
-                <td>${getSimBadge(item.intro)}</td>
-                <td>${getSimBadge(item.text_1)}</td>
-                <td>${getSimBadge(item.text_2)}</td>
-                <td>${getEmbedBadge(item.embeds)}</td>
-                <td style="text-align: right;">
-                    <button class="btn-inspect" onclick="openDiffModal(${index})" style="background: #212631; border: 1px solid #30363d; color: #58a6ff; padding: 4px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600;">
-                        Diff Inspect
-                    </button>
-                </td>
-            `;
-
             tbody.appendChild(tr);
         }
 
