@@ -23,10 +23,11 @@ class ContentSplitter:
         """Strip WordPress more tags, clean spacing."""
         block = re.sub(r'<!--\s*more\s*-->', '', block)
         block = re.sub(r'<span id="more-\d+"></span>', '', block)
-        # Strip "Lees ook: ..." recommendations to keep content clean
-        block = re.sub(r'<p>\s*<strong>Lees ook:.*?</strong>\s*</p>', '', block, flags=re.DOTALL | re.IGNORECASE)
-        block = re.sub(r'<p>\s*<em>Lees ook:.*?</em>\s*</p>', '', block, flags=re.DOTALL | re.IGNORECASE)
-        block = re.sub(r'<h4>\s*Lees ook:.*?</h4>', '', block, flags=re.DOTALL | re.IGNORECASE)
+        # Strip "Lees ook: ...", "Also read: ...", "Lesen Sie auch: ...", "Lire aussi : ..."
+        # recommendations to keep imported content clean from old external internal links
+        block = re.sub(r'<(?:p|h[1-6])>\s*(?:<strong>|<em>)?\s*(?:Lees ook|Also read|Lesen Sie auch|À lire aussi|Lire aussi)\s*:\s*.*?</(?:p|h[1-6])>', '', block, flags=re.DOTALL | re.IGNORECASE)
+        # Catch non-breaking space variants (\xa0 / &nbsp;)
+        block = re.sub(r'<(?:p|h[1-6])>[^<]*(?:Lees ook|Also read|Lesen Sie auch|À lire aussi|Lire aussi)[^<]*<a\s+[^>]*>.*?</(?:p|h[1-6])>', '', block, flags=re.DOTALL | re.IGNORECASE)
         return block.strip()
 
     def _normalize_headings(self, html_text: str) -> str:
