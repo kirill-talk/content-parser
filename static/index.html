@@ -677,13 +677,10 @@
                             </label>
                         </div>
 
-                        <div style="display: flex; gap: 10px;">
-                            <button id="btnStartVerify" class="btn-parse" onclick="startVerification()" style="height: 38px; display: flex; align-items: center; gap: 8px;">
+                        <div class="tool-group" style="margin-left: auto;">
+                            <button id="btnStartVerify" class="btn-mach3" onclick="startVerification()">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                                Run Verification
-                            </button>
-                            <button id="btnCancelVerify" class="btn-cancel" onclick="cancelVerification()" style="display: none; height: 38px;">
-                                Cancel
+                                <span>▶ Run Verification</span>
                             </button>
                         </div>
                     </div>
@@ -716,8 +713,17 @@
                 <!-- Live Progress Box -->
                 <div id="verifyProgressContainer" style="display: none;" class="progress-box">
                     <div class="progress-header">
-                        <div class="progress-status" id="verifyProgressStatus">Initializing crawler...</div>
-                        <div class="progress-counter" id="verifyProgressCounter">0 / 0 (0%)</div>
+                        <div class="progress-title-wrap">
+                            <div class="progress-spinner"></div>
+                            <span class="progress-title" id="verifyProgressStatus">Initializing crawler...</span>
+                        </div>
+                        <div class="progress-right-wrap">
+                            <span class="progress-counter" id="verifyProgressCounter">0 / 0 (0%)</span>
+                            <button type="button" class="btn-cancel-task" id="btnCancelVerify" onclick="cancelVerification()" title="Cancel operation">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                     <div class="progress-bar-track">
                         <div class="progress-bar-fill" id="verifyProgressBarFill"></div>
@@ -1675,8 +1681,9 @@
                 queryParams += `&target_url=${encodeURIComponent(targetUrl)}&identifier=${encodeURIComponent(identifier)}`;
             }
 
-            btnStart.style.display = 'none';
-            btnCancel.style.display = 'inline-block';
+            btnStart.disabled = true;
+            btnStart.style.opacity = '0.6';
+            btnCancel.style.display = 'inline-flex';
             progressBox.style.display = 'block';
             progressBarFill.style.width = '0%';
             progressCounter.textContent = '0%';
@@ -1750,7 +1757,8 @@
                                     progressCounter.textContent = `Done (${evt.total})`;
                                     progressStatus.textContent = evt.message;
                                     progressCurrentTitle.textContent = `Passed: ${evt.passed} | Warn: ${evt.warnings} | Failed: ${evt.failed}`;
-                                    btnStart.style.display = 'inline-block';
+                                    btnStart.disabled = false;
+                                    btnStart.style.opacity = '1';
                                     btnCancel.style.display = 'none';
                                     try { reader.cancel(); } catch (_) {}
                                     break;
@@ -1771,7 +1779,8 @@
                     if (err.name === 'AbortError') {
                         console.log('Verification cancelled by user.');
                         progressStatus.textContent = 'Operation cancelled by user.';
-                        btnStart.style.display = 'inline-block';
+                        btnStart.disabled = false;
+                        btnStart.style.opacity = '1';
                         btnCancel.style.display = 'none';
                         return;
                     }
@@ -1784,7 +1793,8 @@
                         console.error("Verification failed after retries:", err);
                         progressStatus.textContent = `Verification error: ${err.message}`;
                         progressStatus.style.color = '#f85149';
-                        btnStart.style.display = 'inline-block';
+                        btnStart.disabled = false;
+                        btnStart.style.opacity = '1';
                         btnCancel.style.display = 'none';
                     }
                 } finally {
@@ -1792,7 +1802,8 @@
                     verifyStreamReader = null;
                 }
             }
-            btnStart.style.display = 'inline-block';
+            btnStart.disabled = false;
+            btnStart.style.opacity = '1';
             btnCancel.style.display = 'none';
         }
 
@@ -1805,7 +1816,8 @@
                 try { verifyStreamReader.cancel(); } catch (_) {}
                 verifyStreamReader = null;
             }
-            document.getElementById('btnStartVerify').style.display = 'inline-block';
+            document.getElementById('btnStartVerify').disabled = false;
+            document.getElementById('btnStartVerify').style.opacity = '1';
             document.getElementById('btnCancelVerify').style.display = 'none';
             document.getElementById('verifyProgressStatus').textContent = 'Verification stopped by user.';
         }
